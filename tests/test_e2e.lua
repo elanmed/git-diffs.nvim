@@ -70,26 +70,12 @@ local expect_state = MiniTest.new_expectation(
 
 --- @param rel_path string
 --- @param lines string[]
-local function set_worktree_buffer(rel_path, lines)
-  child.bo.buftype = ""
-  child.bo.readonly = false
-  child.bo.modifiable = true
-  child.api.nvim_buf_set_name(0, child.fn.getcwd() .. "/" .. rel_path)
-  child.api.nvim_buf_set_lines(0, 0, -1, true, lines)
-end
-
---- @param rel_path string
---- @param lines string[]
 local function set_named_buffer(rel_path, lines)
   child.bo.buftype = ""
   child.bo.readonly = false
   child.bo.modifiable = true
   child.api.nvim_buf_set_name(0, rel_path)
   child.api.nvim_buf_set_lines(0, 0, -1, true, lines)
-end
-
-local function trigger_diff_update()
-  child.cmd "doautocmd BufEnter"
 end
 
 --- @param filename string
@@ -125,7 +111,6 @@ end
 local function setup_diff_view_test(filename, worktree_lines, index_content)
   set_named_buffer(filename, worktree_lines)
   mock_read_index_files { [filename] = index_content }
-  trigger_diff_update()
   mock_run_diff_cmd("run_diff_cmd_worktree_index", filename .. "\n")
 end
 
@@ -140,8 +125,6 @@ local function setup_diff_view_scroll_test()
 
   set_named_buffer("scroll-test.txt", worktree_lines)
   mock_read_index_file(table.concat(index_lines, "\n") .. "\n")
-  trigger_diff_update()
-  expect_hunks(child.api.nvim_get_current_buf())
   mock_run_diff_cmd("run_diff_cmd_worktree_index", "scroll-test.txt\n")
 
   child.lua_func(function()
@@ -173,7 +156,6 @@ local T = new_set {
       child.restart { "-u", "scripts/minimal_init.lua" }
       child.lua_func(function()
         M = require "git-diffs"
-        M.setup()
       end)
     end,
     post_once = child.stop,
@@ -245,8 +227,6 @@ T["diff view"]["updates old/new content on file selection"] = function()
     ["a.txt"] = "a1\na2\n",
     ["b.txt"] = "b1\nb2\n",
   }
-  trigger_diff_update()
-  expect_hunks(child.api.nvim_get_current_buf())
   mock_run_diff_cmd("run_diff_cmd_worktree_index", "a.txt\nb.txt\n")
 
   child.lua_func(function()

@@ -520,3 +520,5 @@ M.toggle_diff_view = function(opts)
   end
   M.open_diff_view(opts)
 end
+
+return M
