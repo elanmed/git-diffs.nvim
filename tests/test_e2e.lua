@@ -3,31 +3,19 @@ local eq = MiniTest.expect.equality
 
 local child = MiniTest.new_child_neovim()
 
---- @param content string
-local function mock_read_index_file(content)
-  child.lua_func(
-    --- @param content string
-    function(content)
-      M.read_index_file = function()
-        return vim.async.run("mock_read_index_file_task", function()
-          return content
-        end)
-      end
-    end,
-    content
-  )
-end
-
 --- @param files table<string, string>
 local function mock_read_index_files(files)
   child.lua_func(
-    --- @param files table<string, string>
-    function(files)
-      --- @param rel_filename string
+    --- @param files_arg table<string, string>
+    function(files_arg)
+      ---@diagnostic disable-next-line: duplicate-set-field
       M.read_index_file = function(rel_filename)
-        return vim.async.run("mock_read_index_files_task", function()
-          return files[rel_filename]
-        end)
+        return vim.async.run(
+          --- @return string?
+          function()
+            return files_arg[rel_filename]
+          end
+        )
       end
     end,
     files
@@ -38,13 +26,16 @@ end
 --- @param content string
 local function mock_run_diff_cmd(fn_name, content)
   child.lua_func(
-    --- @param fn_name string
-    --- @param content string
-    function(fn_name, content)
-      M[fn_name] = function()
-        return vim.async.run("mock_run_diff_cmd_task", function()
-          return content
-        end)
+    --- @param fn_name_arg string
+    --- @param content_arg string
+    function(fn_name_arg, content_arg)
+      M[fn_name_arg] = function()
+        return vim.async.run(
+          --- @return string?
+          function()
+            return content_arg
+          end
+        )
       end
     end,
     fn_name,
@@ -124,7 +115,7 @@ local function setup_diff_view_scroll_test()
   worktree_lines[1] = "changed line"
 
   set_named_buffer("scroll-test.txt", worktree_lines)
-  mock_read_index_file(table.concat(index_lines, "\n") .. "\n")
+  mock_read_index_files { ["scroll-test.txt"] = table.concat(index_lines, "\n") .. "\n" }
   mock_run_diff_cmd("run_diff_cmd_worktree_index", "scroll-test.txt\n")
 
   child.lua_func(function()

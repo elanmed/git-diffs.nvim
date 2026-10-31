@@ -17,10 +17,6 @@ local ensure_main_loop = function()
   vim.async.sleep(0)
 end
 
--- ====================
--- Misc utils
--- ====================
-
 --- @param level vim.log.levels
 --- @param msg string
 --- @param ... any
