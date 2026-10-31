@@ -102,7 +102,7 @@ local function get_diff_view_windows(filename)
     local bufname = child.api.nvim_buf_get_name(bufnr)
     local basename = child.fn.fnamemodify(bufname, ":t")
 
-    if filetype == "git-diff-view-file-list" then
+    if filetype == "git-diffs-view-file-list" then
       files_win = win
     elseif buftype == "" and basename == filename then
       new_win = win
@@ -172,7 +172,7 @@ local T = new_set {
     pre_case = function()
       child.restart { "-u", "scripts/minimal_init.lua" }
       child.lua_func(function()
-        M = require "git-diff"
+        M = require "git-diffs"
         M.setup()
       end)
     end,
@@ -195,7 +195,7 @@ T["diff view"]["smooth scroll defaults to enabled"] = function()
 end
 
 T["diff view"]["smooth scroll can be disabled"] = function()
-  child.g.git_diff = { smooth_scroll = false }
+  child.g.git_diffs = { smooth_scroll = false }
   setup_diff_view_scroll_test()
 
   child.type_keys "<Plug>GitDiffViewScrollUp"

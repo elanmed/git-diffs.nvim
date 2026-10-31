@@ -44,7 +44,7 @@ end
 --- @field smooth_scroll? boolean
 local is_smooth_scroll_enabled = function()
   --- @type GitDiffConfig
-  local opts = nonnil(vim.g.git_diff, {})
+  local opts = nonnil(vim.g.git_diffs, {})
   return nonnil(opts.smooth_scroll, true)
 end
 
@@ -356,7 +356,7 @@ M.open_diff_view = cb_async(function(opts)
   vim.cmd.tabnew()
   state.tabnr = vim.api.nvim_get_current_tabpage()
 
-  vim.t.git_diff_view_open = true
+  vim.t.git_diffs_view_open = true
 
   state.upstream_branch = opts.upstream_branch
   state.new_bufnr = vim.api.nvim_create_buf(false, true)
@@ -398,7 +398,7 @@ M.open_diff_view = cb_async(function(opts)
   state.file_list_winnr = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(state.file_list_winnr, state.file_list_bufnr)
   vim.wo[state.file_list_winnr].winbar = "Files"
-  vim.bo[state.file_list_bufnr].filetype = "git-diff-view-file-list"
+  vim.bo[state.file_list_bufnr].filetype = "git-diffs-view-file-list"
 
   if #file_list_lines > 0 then
     update_diff_view {
@@ -514,7 +514,7 @@ end)
 
 --- @param opts OpenDiffViewParams
 M.toggle_diff_view = function(opts)
-  if vim.t.git_diff_view_open == true then
+  if vim.t.git_diffs_view_open == true then
     vim.api.nvim_win_close(state.file_list_winnr, false)
     return
   end

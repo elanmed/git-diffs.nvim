@@ -15,18 +15,18 @@ A minimal plugin to view, navigate, and reset git hunks. Also includes a diff vi
 ## Example config
 
 ```lua
-vim.g.git_diff = {
+vim.g.git_diffs = {
   smooth_scroll = true,
 }
 
 vim.keymap.set("n", "<leader>gd", function()
-  require("git-diff").toggle_diff_view { diff_type = "worktree-index" }
+  require("git-diffs").toggle_diff_view { diff_type = "worktree-index" }
 end)
 vim.keymap.set("n", "<leader>gD", function()
-  require("git-diff").toggle_diff_view { diff_type = "worktree-head" }
+  require("git-diffs").toggle_diff_view { diff_type = "worktree-head" }
 end)
 vim.keymap.set("n", "<leader>gm", function()
-  require("git-diff").toggle_diff_view { diff_type = "head-mergebase" }
+  require("git-diffs").toggle_diff_view { diff_type = "head-mergebase" }
 end)
 ```
 
@@ -46,7 +46,7 @@ Refresh the list of files with diffs.
 
 ## API
 
-### `require("git-diff").open_diff_view(opts)`
+### `require("git-diffs").open_diff_view(opts)`
 
 Opens a new tab with a 3-pane diff view:
 
@@ -61,7 +61,7 @@ Opens a new tab with a 3-pane diff view:
 
 If the diff view tab already exists, switches to it instead of creating a new one.
 
-### `require("git-diff").toggle_diff_view(opts)`
+### `require("git-diffs").toggle_diff_view(opts)`
 
 Toggles the diff view: opens it if not open, closes it if already open.
 
@@ -73,4 +73,4 @@ Fired after the diff view opens. `data` contains `old_winnr`, `new_winnr`, `file
 
 ## Filetype
 
-The file list buffer in the diff view uses `git-diff-view-file-list` filetype for custom highlighting or keymaps.
+The file list buffer in the diff view uses `git-diffs-view-file-list` filetype for custom highlighting or keymaps.

@@ -1,0 +1,134 @@
+*git-diffs.txt*                                   Last change: 2026 October 30
+
+==============================================================================
+Table of Contents                                *git-diffs-table-of-contents*
+
+Features ................................................ |git-diffs-features|
+Example config .................................... |git-diffs-example-config|
+Plug remaps .......................................... |git-diffs-plug-remaps|
+`<Plug>GitDiffViewScrollDown` ........ |git-diffs-<plug>gitdiffviewscrolldown|
+`<Plug>GitDiffViewScrollUp` ............ |git-diffs-<plug>gitdiffviewscrollup|
+`<Plug>GitDiffViewRefresh` .............. |git-diffs-<plug>gitdiffviewrefresh|
+API .......................................................... |git-diffs-api|
+`require("git-diffs").open_diff_view(opts)`  |git-diffs-require("git-diffs").open_diff_view(opts)|
+`require("git-diffs").toggle_diff_view(opts)`  |git-diffs-require("git-diffs").toggle_diff_view(opts)|
+Autocommand events ............................ |git-diffs-autocommand-events|
+`User GitDiffViewOpen` ...................... |git-diffs-user-gitdiffviewopen|
+Filetype ................................................ |git-diffs-filetype|
+
+==============================================================================
+`GIT-DIFFS.NVIM`                                    *git-diffs-git-diffs.nvim*
+
+
+A minimal plugin to view, navigate, and reset git hunks. Also includes a diff
+view for comparing any two git file locations.
+
+
+------------------------------------------------------------------------------
+FEATURES                                                  *git-diffs-features*
+
+
+- 1 source file (~730 LOC), no dependencies
+- Async diff computation via coroutines (no UI freezing)
+- Signs update on every edit with debouncing (300ms)
+- Watches `.git/index` and `.git/HEAD` for external changes (e.g. `git
+  checkout`, `git stash`, `git reset`)
+- Navigate to next/previous hunk with wrapping
+- Reset a single hunk, a visual selection of hunks, or the entire file
+- Diff view: compare worktree, index, HEAD, upstream, and merge-base versions
+  in a side-by-side split with file list
+
+------------------------------------------------------------------------------
+EXAMPLE CONFIG                                      *git-diffs-example-config*
+
+
+>lua
+    vim.g.git_diffs = {
+      smooth_scroll = true,
+    }
+    
+    vim.keymap.set("n", "<leader>gd", function()
+      require("git-diffs").toggle_diff_view { diff_type = "worktree-index" }
+    end)
+    vim.keymap.set("n", "<leader>gD", function()
+      require("git-diffs").toggle_diff_view { diff_type = "worktree-head" }
+    end)
+    vim.keymap.set("n", "<leader>gm", function()
+      require("git-diffs").toggle_diff_view { diff_type = "head-mergebase" }
+    end)
+<
+
+------------------------------------------------------------------------------
+PLUG REMAPS                                            *git-diffs-plug-remaps*
+
+
+
+                                                                              
+`<PLUG>GITDIFFVIEWSCROLLDOWN`          *git-diffs-<plug>gitdiffviewscrolldown*
+
+Scroll down in the diff view (both splits simultaneously).
+
+
+                                                                              
+`<PLUG>GITDIFFVIEWSCROLLUP`              *git-diffs-<plug>gitdiffviewscrollup*
+
+Scroll up in the diff view (both splits simultaneously).
+
+
+                                                                              
+`<PLUG>GITDIFFVIEWREFRESH`                *git-diffs-<plug>gitdiffviewrefresh*
+
+Refresh the list of files with diffs.
+
+
+------------------------------------------------------------------------------
+API                                                            *git-diffs-api*
+
+
+
+                                                                              
+`REQUIRE("GIT-DIFFS").OPEN_DIFF_VIEW(OPTS)`*git-diffs-require("git-diffs").open_diff_view(opts)*
+
+Opens a new tab with a 3-pane diff view:
+
+- **Old** (left): the old file version
+- **New** (right): the new file version
+- **Files** (bottom): list of changed files
+`opts`:
+
+- `diff_type` (`string`): one of `"worktree-index"`, `"worktree-head"`,
+  `"worktree-upstream"`, `"worktree-mergebase"`, `"index-head"`,
+  `"index-upstream"`, `"index-mergebase"`, `"head-upstream"`,
+  `"head-mergebase"`
+- `upstream_branch` (`string?`): upstream branch name (default: `"master"`)
+If the diff view tab already exists, switches to it instead of creating a new
+one.
+
+
+                                                                              
+`REQUIRE("GIT-DIFFS").TOGGLE_DIFF_VIEW(OPTS)`*git-diffs-require("git-diffs").toggle_diff_view(opts)*
+
+Toggles the diff view: opens it if not open, closes it if already open.
+
+
+------------------------------------------------------------------------------
+AUTOCOMMAND EVENTS                              *git-diffs-autocommand-events*
+
+
+
+                                                                              
+`USER GITDIFFVIEWOPEN`                        *git-diffs-user-gitdiffviewopen*
+
+Fired after the diff view opens. `data` contains `old_winnr`, `new_winnr`,
+`file_list_winnr`, `old_bufnr`, `new_bufnr`, `file_list_bufnr`.
+
+
+------------------------------------------------------------------------------
+FILETYPE                                                  *git-diffs-filetype*
+
+
+The file list buffer in the diff view uses `git-diffs-view-file-list` filetype
+for custom highlighting or keymaps.
+
+
+vim:tw=78:ts=8:ft=help:norl:
