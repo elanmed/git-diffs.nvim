@@ -429,7 +429,21 @@ M.open_diff_view = cb_async(function(opts)
     },
     callback = function()
       iter = iter + 1
-      local edit_tabnr = state.edit_tabnr
+      local diff_tabnr = state.diff_tabnr
+      if
+        diff_tabnr ~= nil
+        and vim.api.nvim_tabpage_is_valid(diff_tabnr)
+        and #vim.api.nvim_list_tabpages() == 1
+      then
+        state = vim.deepcopy(initial_state)
+        vim.defer_fn(function()
+          if vim.api.nvim_tabpage_is_valid(diff_tabnr) and #vim.api.nvim_list_tabpages() == 1 then
+            vim.cmd.quitall()
+          end
+        end, 0)
+        return
+      end
+
       if vim.api.nvim_win_is_valid(state.new_winnr) then
         vim.api.nvim_win_close(state.new_winnr, false)
       end
@@ -440,13 +454,6 @@ M.open_diff_view = cb_async(function(opts)
         vim.api.nvim_win_close(state.file_list_winnr, false)
       end
       state = vim.deepcopy(initial_state)
-      if
-        edit_tabnr ~= nil
-        and not vim.api.nvim_tabpage_is_valid(edit_tabnr)
-        and #vim.api.nvim_list_tabpages() == 1
-      then
-        vim.cmd.quitall()
-      end
     end,
   })
 

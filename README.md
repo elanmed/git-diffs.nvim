@@ -69,7 +69,7 @@ Opens a new tab with a 3-pane diff view:
 - `diff_type` (`string`): one of `"worktree-index"`, `"worktree-head"`, `"worktree-upstream"`, `"worktree-mergebase"`, `"index-head"`, `"index-upstream"`, `"index-mergebase"`, `"head-upstream"`, `"head-mergebase"`
 - `upstream_branch` (`string?`): upstream branch name (default: `"master"`)
 
-If the diff view tab already exists, switches to it instead of creating a new one.
+If the diff view tab already exists, switches to it instead of creating a new one. If the diff view is the last remaining tab, closing it quits Neovim unless modified buffers prevent quitting.
 
 ### `require("git-diffs").toggle_diff_view(opts)`
 

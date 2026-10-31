@@ -114,7 +114,8 @@ Opens a new tab with a 3-pane diff view:
   `"head-mergebase"`
 - `upstream_branch` (`string?`): upstream branch name (default: `"master"`)
 If the diff view tab already exists, switches to it instead of creating a new
-one.
+one. If the diff view is the last remaining tab, closing it quits Neovim
+unless modified buffers prevent quitting.
 
 
                                                                               
