@@ -4,13 +4,8 @@ A minimal plugin to view, navigate, and reset git hunks. Also includes a diff vi
 
 ## Features
 
-- 1 source file (~730 LOC), no dependencies
-- Async diff computation via coroutines (no UI freezing)
-- Signs update on every edit with debouncing (300ms)
-- Watches `.git/index` and `.git/HEAD` for external changes (e.g. `git checkout`, `git stash`, `git reset`)
-- Navigate to next/previous hunk with wrapping
-- Reset a single hunk, a visual selection of hunks, or the entire file
-- Diff view: compare worktree, index, HEAD, upstream, and merge-base versions in a side-by-side split with file list
+- 1 source file (~500 LOC), no dependencies
+- Compare worktree, index, HEAD, upstream, and merge-base versions in a side-by-side split with file list
 
 ## Example config
 
