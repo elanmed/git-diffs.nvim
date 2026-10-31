@@ -1,3 +1,4 @@
+local MiniTest = require "mini.test"
 local new_set = MiniTest.new_set
 local eq = MiniTest.expect.equality
 

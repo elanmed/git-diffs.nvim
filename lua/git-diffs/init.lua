@@ -88,7 +88,8 @@ local system_async = vim.async.wrap(3, vim.system)
 
 --- @type fun(cmd: string[], opts: vim.SystemOpts?): vim.async.Task<string?>
 local vim_system_stdout = function(cmd, opts)
-  return vim.async.run("vim_system_stdout_task", function()
+  --- @return string?
+  return vim.async.run(function()
     local out = system_async(cmd, opts)
     if out.code ~= 0 then
       return nil
@@ -108,16 +109,17 @@ end
 --- @param upstream_branch? string
 --- @return vim.async.Task<string?>
 M.read_mergebase_file = function(rel_filename, upstream_branch)
-  return vim.async.run("read_mergebase_file_task", function()
+  --- @return string?
+  return vim.async.run(function()
     upstream_branch = nonnil(upstream_branch, "master")
     local merge_base = vim.async.await(
       vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch }
-    )
+    ) --[[@as string?]]
     if merge_base == nil then
       return nil
     end
     merge_base = vim.trim(merge_base)
-    return vim.async.await(vim_system_stdout { "git", "show", merge_base .. ":" .. rel_filename })
+    return vim.async.await(vim_system_stdout { "git", "show", merge_base .. ":" .. rel_filename }) --[[@as string?]]
   end)
 end
 
@@ -129,7 +131,8 @@ end
 
 --- @type fun(opts: ResolveFileContentsParams): vim.async.Task<string?>
 local resolve_file_contents = function(opts)
-  return vim.async.run("resolve_file_contents_task", function()
+  --- @return string?
+  return vim.async.run(function()
     local file_contents --- @type string?
 
     if opts.file_location == "worktree" then
@@ -142,18 +145,20 @@ local resolve_file_contents = function(opts)
         file_contents = table.concat(buf_lines, "\n")
       end
     elseif opts.file_location == "index" then
-      file_contents = vim.async.await(M.read_index_file(opts.rel_filename))
+      file_contents = vim.async.await(M.read_index_file(opts.rel_filename)) --[[@as string?]]
     elseif opts.file_location == "head" then
       file_contents =
-        vim.async.await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename })
+        vim.async.await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename }) --[[@as string?]]
     elseif opts.file_location == "upstream" then
       local upstream_branch = nonnil(opts.upstream_branch, "master")
-      file_contents = vim.async.await(
-        vim_system_stdout { "git", "show", "origin/" .. upstream_branch .. ":" .. opts.rel_filename }
-      )
+      file_contents = vim.async.await(vim_system_stdout {
+        "git",
+        "show",
+        "origin/" .. upstream_branch .. ":" .. opts.rel_filename,
+      }) --[[@as string?]]
     elseif opts.file_location == "mergebase" then
       file_contents =
-        vim.async.await(M.read_mergebase_file(opts.rel_filename, opts.upstream_branch))
+        vim.async.await(M.read_mergebase_file(opts.rel_filename, opts.upstream_branch)) --[[@as string?]]
     end
 
     if file_contents == nil then
@@ -167,7 +172,8 @@ end
 --- @return FileLocation old_location
 --- @return FileLocation new_location
 local get_file_locations_from_diff_type = function(diff_type)
-  return unpack(vim.split(diff_type, "-"))
+  local file_locations = vim.split(diff_type, "-")
+  return file_locations[1], file_locations[2]
 end
 
 --- @class ResolveDiffCmdOpts
@@ -182,34 +188,36 @@ end
 --- @param upstream_branch? string
 --- @return vim.async.Task<string?>
 M.run_diff_cmd_worktree_mergebase = function(upstream_branch)
-  return vim.async.run("run_diff_cmd_worktree_mergebase_task", function()
+  --- @return string?
+  return vim.async.run(function()
     upstream_branch = nonnil(upstream_branch, "master")
     local merge_base = vim.async.await(
       vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch }
-    )
+    ) --[[@as string?]]
     if merge_base == nil then
       return nil
     end
     merge_base = vim.trim(merge_base)
-    return vim.async.await(vim_system_stdout { "git", "diff", "--name-only", merge_base })
+    return vim.async.await(vim_system_stdout { "git", "diff", "--name-only", merge_base }) --[[@as string?]]
   end)
 end
 
 --- @param upstream_branch? string
 --- @return vim.async.Task<string?>
 M.run_diff_cmd_index_mergebase = function(upstream_branch)
-  return vim.async.run("run_diff_cmd_index_mergebase_task", function()
+  --- @return string?
+  return vim.async.run(function()
     upstream_branch = nonnil(upstream_branch, "master")
     local merge_base = vim.async.await(
       vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch }
-    )
+    ) --[[@as string?]]
     if merge_base == nil then
       return nil
     end
     merge_base = vim.trim(merge_base)
     return vim.async.await(
       vim_system_stdout { "git", "diff", "--name-only", "--cached", merge_base }
-    )
+    ) --[[@as string?]]
   end)
 end
 
@@ -254,6 +262,8 @@ M.run_diff_cmd = function(opts)
   elseif opts.diff_type == "head-mergebase" then
     return M.run_diff_cmd_head_mergebase(opts.upstream_branch)
   end
+
+  error("Unsupported diff type: " .. opts.diff_type)
 end
 
 local initial_state = {
@@ -295,7 +305,7 @@ local update_diff_view = cb_async(function(opts)
       file_location = new_file_location,
       rel_filename = opts.rel_filename,
       upstream_branch = opts.upstream_branch,
-    })
+    }) --[[@as string?]]
     if curr_iter ~= iter then
       return
     end
@@ -313,7 +323,7 @@ local update_diff_view = cb_async(function(opts)
     file_location = old_file_location,
     rel_filename = opts.rel_filename,
     upstream_branch = opts.upstream_branch,
-  })
+  }) --[[@as string?]]
   ensure_main_loop()
   if curr_iter ~= iter then
     return
@@ -371,11 +381,12 @@ M.open_diff_view = cb_async(function(opts)
 
   --- @type fun(): vim.async.Task<string[]>
   local set_file_list = function()
-    return vim.async.run("set_file_list_task", function()
+    --- @return string[]
+    return vim.async.run(function()
       local file_list_str = vim.async.await(M.run_diff_cmd {
         diff_type = opts.diff_type,
         upstream_branch = opts.upstream_branch,
-      })
+      }) --[[@as string?]]
       ensure_main_loop()
       file_list_str = nonnil(file_list_str, "")
       local file_list_lines = vim.split(file_list_str, "\n", { trimempty = true })
@@ -388,7 +399,7 @@ M.open_diff_view = cb_async(function(opts)
     end)
   end
 
-  local file_list_lines = vim.async.await(set_file_list())
+  local file_list_lines = vim.async.await(set_file_list()) --[[@as string[] ]]
   ensure_main_loop()
   vim.cmd "botright 10split"
   state.file_list_winnr = vim.api.nvim_get_current_win()
@@ -447,7 +458,7 @@ M.open_diff_view = cb_async(function(opts)
     "<Plug>GitDiffViewScrollDown",
     cb_async(function()
       local winnr = state.old_winnr
-      if not vim.api.nvim_win_is_valid(winnr) then
+      if winnr == nil or not vim.api.nvim_win_is_valid(winnr) then
         return
       end
 
@@ -468,7 +479,7 @@ M.open_diff_view = cb_async(function(opts)
     "<Plug>GitDiffViewScrollUp",
     cb_async(function()
       local winnr = state.old_winnr
-      if not vim.api.nvim_win_is_valid(winnr) then
+      if winnr == nil or not vim.api.nvim_win_is_valid(winnr) then
         return
       end
 
