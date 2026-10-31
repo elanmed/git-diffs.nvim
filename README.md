@@ -1,6 +1,6 @@
 # `git-diffs.nvim`
 
-A minimal plugin to view, navigate, and reset git hunks. Also includes a diff view for comparing any two git file locations.
+A minimal plugin for comparing Git file versions in a side-by-side diff view.
 
 ## Features
 
