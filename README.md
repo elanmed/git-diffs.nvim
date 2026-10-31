@@ -14,6 +14,17 @@ vim.g.git_diffs = {
   smooth_scroll = true,
 }
 
+vim.api.nvim_create_autocmd({ "FileType" }, {
+  group = vim.api.nvim_create_augroup("GitDiffViewRemaps", { clear = true }),
+  pattern = "git-diffs-view-file-list",
+  callback = function()
+    vim.keymap.set("n", "<c-d>", "<Plug>GitDiffViewScrollDown", { buffer = true })
+    vim.keymap.set("n", "<c-u>", "<Plug>GitDiffViewScrollUp", { buffer = true })
+    vim.keymap.set("n", "<leader>e", "<Plug>GitDiffViewRefresh", { buffer = true })
+    vim.keymap.set("n", "o", "<Plug>GitDiffViewSwitchToBuffer", { buffer = true })
+  end,
+})
+
 vim.keymap.set("n", "<leader>gd", function()
   require("git-diffs").toggle_diff_view { diff_type = "worktree-index" }
 end)
@@ -38,6 +49,10 @@ Scroll up in the diff view (both splits simultaneously).
 ### `<Plug>GitDiffViewRefresh`
 
 Refresh the list of files with diffs.
+
+### `<Plug>GitDiffViewSwitchToBuffer`
+
+Switch to the selected file's buffer in the tab from which the diff view was opened.
 
 ## API
 

@@ -56,6 +56,7 @@ end
 local smooth_scroll = function(winnr, direction, num_lines)
   for _ = 1, num_lines do
     if not vim.api.nvim_win_is_valid(winnr) then
+      notify(vim.log.levels.WARN, "Diff view window is no longer available")
       return
     end
 
@@ -258,7 +259,8 @@ local initial_state = {
   old_bufnr = nil,
   file_list_winnr = nil,
   file_list_bufnr = nil,
-  tabnr = nil,
+  diff_tabnr = nil,
+  edit_tabnr = nil,
 }
 
 local state = vim.deepcopy(initial_state)
@@ -339,13 +341,14 @@ end)
 
 --- @type fun(opts: OpenDiffViewParams): nil
 M.open_diff_view = cb_async(function(opts)
-  if state.tabnr ~= nil then
-    vim.api.nvim_set_current_tabpage(state.tabnr)
+  if state.diff_tabnr ~= nil then
+    vim.api.nvim_set_current_tabpage(state.diff_tabnr)
     return
   end
 
+  state.edit_tabnr = vim.api.nvim_get_current_tabpage()
   vim.cmd.tabnew()
-  state.tabnr = vim.api.nvim_get_current_tabpage()
+  state.diff_tabnr = vim.api.nvim_get_current_tabpage()
 
   vim.t.git_diffs_view_open = true
 
@@ -426,6 +429,7 @@ M.open_diff_view = cb_async(function(opts)
     },
     callback = function()
       iter = iter + 1
+      local edit_tabnr = state.edit_tabnr
       if vim.api.nvim_win_is_valid(state.new_winnr) then
         vim.api.nvim_win_close(state.new_winnr, false)
       end
@@ -436,6 +440,13 @@ M.open_diff_view = cb_async(function(opts)
         vim.api.nvim_win_close(state.file_list_winnr, false)
       end
       state = vim.deepcopy(initial_state)
+      if
+        edit_tabnr ~= nil
+        and not vim.api.nvim_tabpage_is_valid(edit_tabnr)
+        and #vim.api.nvim_list_tabpages() == 1
+      then
+        vim.cmd.quitall()
+      end
     end,
   })
 
@@ -445,6 +456,7 @@ M.open_diff_view = cb_async(function(opts)
     cb_async(function()
       local winnr = state.old_winnr
       if winnr == nil or not vim.api.nvim_win_is_valid(winnr) then
+        notify(vim.log.levels.WARN, "Diff view window is no longer available")
         return
       end
 
@@ -466,6 +478,7 @@ M.open_diff_view = cb_async(function(opts)
     cb_async(function()
       local winnr = state.old_winnr
       if winnr == nil or not vim.api.nvim_win_is_valid(winnr) then
+        notify(vim.log.levels.WARN, "Diff view window is no longer available")
         return
       end
 
@@ -491,6 +504,23 @@ M.open_diff_view = cb_async(function(opts)
     end),
     { desc = "Scroll up in the diff view", buffer = state.file_list_bufnr }
   )
+
+  vim.keymap.set("n", "<Plug>GitDiffViewSwitchToBuffer", function()
+    local rel_filename = vim.api.nvim_win_call(state.file_list_winnr, vim.api.nvim_get_current_line)
+    if rel_filename == nil or rel_filename == "" then
+      notify(vim.log.levels.WARN, "No file is selected")
+      return
+    end
+
+    if not vim.api.nvim_tabpage_is_valid(state.edit_tabnr) then
+      notify(vim.log.levels.WARN, "Original editing tab is no longer available")
+      return
+    end
+
+    local filename_bufnr = vim.fn.bufnr(rel_filename, 1)
+    vim.api.nvim_set_current_tabpage(state.edit_tabnr)
+    vim.api.nvim_win_set_buf(0, filename_bufnr)
+  end, { desc = "Switch to selected file buffer", buffer = state.file_list_bufnr })
 
   vim.api.nvim_exec_autocmds("User", {
     pattern = "GitDiffViewOpen",

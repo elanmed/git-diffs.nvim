@@ -9,6 +9,7 @@ Plug remaps .......................................... |git-diffs-plug-remaps|
 `<Plug>GitDiffViewScrollDown` ........ |git-diffs-<plug>gitdiffviewscrolldown|
 `<Plug>GitDiffViewScrollUp` ............ |git-diffs-<plug>gitdiffviewscrollup|
 `<Plug>GitDiffViewRefresh` .............. |git-diffs-<plug>gitdiffviewrefresh|
+`<Plug>GitDiffViewSwitchToBuffer`  |git-diffs-<plug>gitdiffviewswitchtobuffer|
 API .......................................................... |git-diffs-api|
 `require("git-diffs").open_diff_view(opts)`  |git-diffs-require("git-diffs").open_diff_view(opts)|
 `require("git-diffs").toggle_diff_view(opts)`  |git-diffs-require("git-diffs").toggle_diff_view(opts)|
@@ -39,6 +40,17 @@ EXAMPLE CONFIG                                      *git-diffs-example-config*
     vim.g.git_diffs = {
       smooth_scroll = true,
     }
+    
+    vim.api.nvim_create_autocmd({ "FileType" }, {
+      group = vim.api.nvim_create_augroup("GitDiffViewRemaps", { clear = true }),
+      pattern = "git-diffs-view-file-list",
+      callback = function()
+        vim.keymap.set("n", "<c-d>", "<Plug>GitDiffViewScrollDown", { buffer = true })
+        vim.keymap.set("n", "<c-u>", "<Plug>GitDiffViewScrollUp", { buffer = true })
+        vim.keymap.set("n", "<leader>e", "<Plug>GitDiffViewRefresh", { buffer = true })
+        vim.keymap.set("n", "o", "<Plug>GitDiffViewSwitchToBuffer", { buffer = true })
+      end,
+    })
     
     vim.keymap.set("n", "<leader>gd", function()
       require("git-diffs").toggle_diff_view { diff_type = "worktree-index" }
@@ -72,6 +84,13 @@ Scroll up in the diff view (both splits simultaneously).
 `<PLUG>GITDIFFVIEWREFRESH`                *git-diffs-<plug>gitdiffviewrefresh*
 
 Refresh the list of files with diffs.
+
+
+                                                                              
+`<PLUG>GITDIFFVIEWSWITCHTOBUFFER`  *git-diffs-<plug>gitdiffviewswitchtobuffer*
+
+Switch to the selected file's buffer in the tab from which the diff view was
+opened.
 
 
 ------------------------------------------------------------------------------

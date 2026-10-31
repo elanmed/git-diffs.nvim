@@ -76,6 +76,20 @@ local function get_file_list_lines()
   return nil
 end
 
+local function mock_notify()
+  child.lua_func(function()
+    rawset(_G, "notifications", {})
+    --- @param message string
+    --- @param level? vim.log.levels
+    local notify_mock = function(message, level)
+      table.insert(rawget(_G, "notifications"), { message, level })
+      return 0
+    end
+    --- @diagnostic disable-next-line: duplicate-set-field
+    vim.notify = notify_mock --[[@as any]]
+  end)
+end
+
 local expect_state = MiniTest.new_expectation(
   "state condition met",
   --- @param predicate fun(): boolean
@@ -294,6 +308,155 @@ T["diff view"]["shows an empty file list when there are no changed files"] = fun
     return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
   end)
   eq(get_file_list_lines(), { "" })
+end
+
+T["diff view"]["notifies when scroll keymaps no longer have a diff window"] = function()
+  set_named_buffer("a.txt", { "a" })
+  mock_read_index_files { ["a.txt"] = "old a\n" }
+  mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\n" } }
+  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
+  local _, _, files_win = get_diff_view_windows "a.txt"
+  local files_bufnr = child.api.nvim_win_get_buf(files_win)
+  child.api.nvim_win_close(files_win, false)
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 1
+  end)
+
+  mock_notify()
+  child.cmd "new"
+  child.api.nvim_win_set_buf(0, files_bufnr)
+  child.type_keys "<Plug>GitDiffViewScrollDown"
+  expect_state(function()
+    return child.lua_func(function()
+      return #rawget(_G, "notifications") == 1
+    end)
+  end)
+  child.type_keys "<Plug>GitDiffViewScrollUp"
+  expect_state(function()
+    return child.lua_func(function()
+      return #rawget(_G, "notifications") == 2
+    end)
+  end)
+  eq(
+    child.lua_func(function()
+      return rawget(_G, "notifications")
+    end),
+    {
+      { "[git-diffs.nvim]: Diff view window is no longer available", vim.log.levels.WARN },
+      { "[git-diffs.nvim]: Diff view window is no longer available", vim.log.levels.WARN },
+    }
+  )
+end
+
+T["diff view"]["switches to the selected file buffer in the original tab"] = function()
+  set_named_buffer("a.txt", { "a" })
+  child.cmd "badd b.txt"
+  local b_bufnr = child.fn.bufnr "b.txt"
+  child.api.nvim_buf_set_lines(b_bufnr, 0, -1, true, { "b1", "b2" })
+  mock_read_index_files {
+    ["a.txt"] = "old a\n",
+    ["b.txt"] = "old b\n",
+  }
+  mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\nb.txt\n" } }
+  local edit_tab = child.api.nvim_get_current_tabpage()
+
+  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    local lines = get_file_list_lines()
+    return #child.api.nvim_tabpage_list_wins(0) == 3 and lines ~= nil and lines[1] == "a.txt"
+  end)
+  child.type_keys "j"
+  expect_state(function()
+    return child.api.nvim_get_current_line() == "b.txt"
+  end)
+  child.type_keys "<Plug>GitDiffViewSwitchToBuffer"
+
+  eq(child.api.nvim_get_current_tabpage(), edit_tab)
+  eq(child.api.nvim_get_current_buf(), b_bufnr)
+  eq(child.api.nvim_buf_get_lines(b_bufnr, 0, -1, false), { "b1", "b2" })
+end
+
+T["diff view"]["does nothing when switching from an empty file list"] = function()
+  mock_system_responses { ["git diff --name-only"] = { stdout = "" } }
+  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
+  local diff_tab = child.api.nvim_get_current_tabpage()
+  mock_notify()
+
+  child.type_keys "<Plug>GitDiffViewSwitchToBuffer"
+
+  eq(child.api.nvim_get_current_tabpage(), diff_tab)
+  eq(#child.api.nvim_list_tabpages(), 2)
+  eq(
+    child.lua_func(function()
+      return rawget(_G, "notifications")
+    end),
+    { { "[git-diffs.nvim]: No file is selected", vim.log.levels.WARN } }
+  )
+end
+
+T["diff view"]["quits when closing the last diff tab after the original tab closes"] = function()
+  set_named_buffer("a.txt", { "a" })
+  mock_read_index_files { ["a.txt"] = "old a\n" }
+  mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\n" } }
+  local edit_tab = child.api.nvim_get_current_tabpage()
+
+  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
+  local diff_tab = child.api.nvim_get_current_tabpage()
+  child.api.nvim_set_current_tabpage(edit_tab)
+  child.cmd "tabclose"
+  child.api.nvim_set_current_tabpage(diff_tab)
+  child.lua_func(function()
+    rawset(_G, "quitall_called", false)
+    rawset(vim.cmd, "quitall", function()
+      rawset(_G, "quitall_called", true)
+    end)
+  end)
+
+  local _, _, files_win = get_diff_view_windows "a.txt"
+  child.api.nvim_win_close(files_win, false)
+  expect_state(function()
+    return child.lua_func(function()
+      return rawget(_G, "quitall_called")
+    end)
+  end)
+  eq(#child.api.nvim_list_tabpages(), 1)
+end
+
+T["diff view"]["does nothing when the original tab has been closed"] = function()
+  set_named_buffer("a.txt", { "a" })
+  mock_read_index_files { ["a.txt"] = "old a\n" }
+  mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\n" } }
+  local edit_tab = child.api.nvim_get_current_tabpage()
+
+  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
+  local diff_tab = child.api.nvim_get_current_tabpage()
+  child.api.nvim_set_current_tabpage(edit_tab)
+  child.cmd "tabclose"
+  child.api.nvim_set_current_tabpage(diff_tab)
+  mock_notify()
+
+  child.type_keys "<Plug>GitDiffViewSwitchToBuffer"
+
+  eq(child.api.nvim_get_current_tabpage(), diff_tab)
+  eq(#child.api.nvim_list_tabpages(), 1)
+  eq(
+    child.lua_func(function()
+      return rawget(_G, "notifications")
+    end),
+    { { "[git-diffs.nvim]: Original editing tab is no longer available", vim.log.levels.WARN } }
+  )
 end
 
 --- @class DiffViewEventData
