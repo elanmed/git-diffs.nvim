@@ -1,7 +1,6 @@
 local MiniTest = require "mini.test"
 local new_set = MiniTest.new_set
 local eq = MiniTest.expect.equality
-
 local child = MiniTest.new_child_neovim()
 
 --- @param files table<string, string>
@@ -9,14 +8,11 @@ local function mock_read_index_files(files)
   child.lua_func(
     --- @param files_arg table<string, string>
     function(files_arg)
-      ---@diagnostic disable-next-line: duplicate-set-field
       M.read_index_file = function(rel_filename)
-        return vim.async.run(
-          --- @return string?
-          function()
-            return files_arg[rel_filename]
-          end
-        )
+        --- @return string?
+        return vim.async.run(function()
+          return files_arg[rel_filename]
+        end)
       end
     end,
     files
@@ -201,7 +197,6 @@ local T = new_set {
           end)
           return nil
         end
-        --- @diagnostic disable-next-line: duplicate-set-field
         vim.system = system_mock --[[@as any]]
         M = require "git-diffs"
       end)
