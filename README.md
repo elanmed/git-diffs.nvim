@@ -4,7 +4,7 @@ A minimal plugin for comparing Git file versions in a side-by-side diff view.
 
 ## Features
 
-- 1 source file (~500 LOC), no dependencies
+- 1 source file (~1000 LOC), no dependencies
 - Compare worktree, index, HEAD, upstream, and merge-base versions in single-file and multi-file side-by-side views
 
 ## Example config
@@ -19,9 +19,9 @@ vim.api.nvim_create_autocmd("User", {
   pattern = "GitDiffsMultiBuffer",
   callback = function(ev)
     local data = ev.data
-    vim.wo[data.old_winnr].statusline = " "
-    vim.wo[data.new_winnr].statusline = " "
-    vim.wo[data.file_list_winnr].statusline = " "
+    for _, winnr in ipairs { data.old_winnr, data.new_winnr, data.file_list_winnr } do
+      vim.wo[winnr].statusline = " "
+    end
 
     for _, bufnr in ipairs { data.old_bufnr, data.new_bufnr, data.file_list_bufnr } do
       vim.keymap.set("n", "<C-n>", "<Plug>GitDiffsMultiListDown", { buffer = bufnr })
@@ -48,33 +48,41 @@ end)
 
 ## Plug remaps
 
+| Remap                                                           | Multi-file buffers              | Single-file buffers |
+| --------------------------------------------------------------- | ------------------------------- | ------------------- |
+| `<Plug>GitDiffsMultiScrollDown` / `<Plug>GitDiffsMultiScrollUp` | Files pane only                 | —                   |
+| `<Plug>GitDiffsMultiListDown` / `<Plug>GitDiffsMultiListUp`     | Old, new, and file list buffers | —                   |
+| `<Plug>GitDiffsMultiRefresh`                                    | Old, new, and file list buffers | —                   |
+| `<Plug>GitDiffsMultiSwitchBuffer`                               | Old, new, and file list buffers | —                   |
+| `<Plug>GitDiffsSingleClose`                                     | —                               | Worktree pane only  |
+
 ### `<Plug>GitDiffsMultiScrollDown`
 
-Scroll down in the diff view (both splits simultaneously).
+Scroll down in the diff view (both splits simultaneously); map this on the multi-file view's file-list buffer. The corresponding `<Plug>GitDiffsMultiScrollUp` mapping scrolls up.
 
 ### `<Plug>GitDiffsMultiScrollUp`
 
-Scroll up in the diff view (both splits simultaneously).
+Scroll up in the diff view (both splits simultaneously); map this on the multi-file view's file-list buffer.
 
 ### `<Plug>GitDiffsMultiListDown`
 
-Move to the next file in the file list from either diff pane; wraps from the last file to the first.
+Move the file-list cursor to the next file; wraps from the last file to the first. Available from the old, new, and file-list buffers of a multi-file view.
 
 ### `<Plug>GitDiffsMultiListUp`
 
-Move to the previous file in the file list from either diff pane; wraps from the first file to the last.
+Move the file-list cursor to the previous file; wraps from the first file to the last. Available from the old, new, and file-list buffers of a multi-file view.
 
 ### `<Plug>GitDiffsMultiRefresh`
 
-Refresh the list of files with diffs.
+Refresh the list of files with diffs. Available from the old, new, and file-list buffers of a multi-file view.
 
 ### `<Plug>GitDiffsMultiSwitchBuffer`
 
-Switch to the selected file's buffer in the tab from which the diff view was opened.
+Switch to the selected file's buffer in the tab from which the diff view was opened. Available from the old, new, and file-list buffers of a multi-file view.
 
 ### `<Plug>GitDiffsSingleClose`
 
-Close the single-file diff view and return to the worktree buffer.
+Close the single-file diff view and return to the worktree buffer. This mapping is available in the worktree pane only.
 
 ## API
 
@@ -115,4 +123,4 @@ Fired after the single-file diff view opens. `data` contains `old_winnr`, `workt
 
 ### `User GitDiffsMultiBuffer`
 
-Fired when multi-file buffers are initialized and when the new-side buffer changes. `data` contains all pane window and buffer IDs; `new_bufnr` is the actual buffer displayed in the new pane, and `rel_filename` is present when a file is selected.
+Fired when multi-file buffers are initialized and when the new-side buffer changes.
