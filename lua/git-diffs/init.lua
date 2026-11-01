@@ -37,13 +37,8 @@ local nonnil = function(val, fallback)
 end
 
 --- @param winnr number
-local should_close_winnr = function(winnr)
-  return winnr ~= nil and vim.api.nvim_win_is_valid(winnr)
-end
-
---- @param winnr number
 local maybe_close_winnr = function(winnr)
-  if should_close_winnr(winnr) then
+  if winnr ~= nil and vim.api.nvim_win_is_valid(winnr) then
     vim.api.nvim_win_close(winnr, false)
     return true
   end
@@ -133,7 +128,7 @@ end
 --- @param winnr integer
 --- @param direction "j" | "k"
 local scroll_diff_view = function(winnr, direction)
-  if not should_close_winnr(winnr) then
+  if winnr == nil or not vim.api.nvim_win_is_valid(winnr) then
     notify(vim.log.levels.WARN, "Diff view window is no longer available")
     return
   end
@@ -749,9 +744,7 @@ local register_single_file_diff_view_callbacks = function(nrs)
   )
 
   vim.keymap.set("n", "<Plug>GitDiffsSingleFileDiffViewClose", function()
-    if should_close_winnr(nrs.worktree_winnr) then
-      close_single_file_diff_view(nrs)
-    end
+    close_single_file_diff_view(nrs)
   end, { buffer = nrs.worktree_bufnr })
 end
 
