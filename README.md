@@ -5,7 +5,7 @@ A minimal plugin for comparing Git file versions in a side-by-side diff view.
 ## Features
 
 - 1 source file (~500 LOC), no dependencies
-- Compare worktree, index, HEAD, upstream, and merge-base versions in a side-by-side split with file list
+- Compare worktree, index, HEAD, upstream, and merge-base versions in single-file and multi-file side-by-side views
 
 ## Example config
 
@@ -18,45 +18,49 @@ vim.api.nvim_create_autocmd({ "FileType" }, {
   group = vim.api.nvim_create_augroup("GitDiffViewRemaps", { clear = true }),
   pattern = "git-diffs-view-file-list",
   callback = function()
-    vim.keymap.set("n", "<c-d>", "<Plug>GitDiffViewScrollDown", { buffer = true })
-    vim.keymap.set("n", "<c-u>", "<Plug>GitDiffViewScrollUp", { buffer = true })
-    vim.keymap.set("n", "<leader>e", "<Plug>GitDiffViewRefresh", { buffer = true })
-    vim.keymap.set("n", "o", "<Plug>GitDiffViewSwitchToBuffer", { buffer = true })
+    vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiFileDiffViewScrollDown", { buffer = true })
+    vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiFileDiffViewScrollUp", { buffer = true })
+    vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiFileDiffViewRefresh", { buffer = true })
+    vim.keymap.set("n", "o", "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer", { buffer = true })
   end,
 })
 
 vim.keymap.set("n", "<leader>gd", function()
-  require("git-diffs").toggle_diff_view { diff_type = "worktree-index" }
+  require("git-diffs").toggle_multi_file_diff_view { diff_type = "worktree-index" }
 end)
 vim.keymap.set("n", "<leader>gD", function()
-  require("git-diffs").toggle_diff_view { diff_type = "worktree-head" }
+  require("git-diffs").toggle_multi_file_diff_view { diff_type = "worktree-head" }
 end)
 vim.keymap.set("n", "<leader>gm", function()
-  require("git-diffs").toggle_diff_view { diff_type = "head-mergebase" }
+  require("git-diffs").toggle_multi_file_diff_view { diff_type = "head-mergebase" }
 end)
 ```
 
 ## Plug remaps
 
-### `<Plug>GitDiffViewScrollDown`
+### `<Plug>GitDiffsMultiFileDiffViewScrollDown`
 
 Scroll down in the diff view (both splits simultaneously).
 
-### `<Plug>GitDiffViewScrollUp`
+### `<Plug>GitDiffsMultiFileDiffViewScrollUp`
 
 Scroll up in the diff view (both splits simultaneously).
 
-### `<Plug>GitDiffViewRefresh`
+### `<Plug>GitDiffsMultiFileDiffViewRefresh`
 
 Refresh the list of files with diffs.
 
-### `<Plug>GitDiffViewSwitchToBuffer`
+### `<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer`
 
 Switch to the selected file's buffer in the tab from which the diff view was opened.
 
+### `<Plug>GitDiffsSingleFileDiffViewClose`
+
+Close the single-file diff view and return to the worktree buffer.
+
 ## API
 
-### `require("git-diffs").open_diff_view(opts)`
+### `require("git-diffs").open_multi_file_diff_view(opts)`
 
 Opens a new tab with a 3-pane diff view:
 
@@ -71,9 +75,15 @@ Opens a new tab with a 3-pane diff view:
 
 If the diff view tab already exists, switches to it instead of creating a new one. If the diff view is the last remaining tab, closing it quits Neovim unless modified buffers prevent quitting.
 
-### `require("git-diffs").toggle_diff_view(opts)`
+### `require("git-diffs").open_single_file_diff_view(opts)`
 
-Toggles the diff view: opens it if not open, closes it if already open.
+Open a side-by-side diff for the current worktree buffer, comparing it with the selected older file location. `opts` accepts a worktree diff type and optional `upstream_branch`.
+
+Invoke `<Plug>GitDiffsSingleFileDiffViewClose` to close the view and return to the worktree buffer.
+
+### `require("git-diffs").toggle_multi_file_diff_view(opts)`
+
+Toggles the multi-file diff view: opens it if not open, closes it if already open.
 
 ## Autocommand events
 

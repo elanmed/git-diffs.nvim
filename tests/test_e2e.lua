@@ -166,7 +166,7 @@ local function setup_diff_view_scroll_test()
   mock_system_responses { ["git diff --name-only"] = { stdout = "scroll-test.txt\n" } }
 
   child.lua_func(function()
-    M.open_diff_view { diff_type = "worktree-index" }
+    M.open_multi_file_diff_view { diff_type = "worktree-index" }
   end)
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
@@ -224,7 +224,7 @@ T["diff view"] = new_set()
 T["diff view"]["smooth scroll defaults to enabled"] = function()
   setup_diff_view_scroll_test()
 
-  child.type_keys "<Plug>GitDiffViewScrollDown"
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewScrollDown"
   eq(
     child.lua_func(function()
       return #_G.smooth_scroll_sleep_calls
@@ -237,7 +237,7 @@ T["diff view"]["smooth scroll can be disabled"] = function()
   child.g.git_diffs = { smooth_scroll = false }
   setup_diff_view_scroll_test()
 
-  child.type_keys "<Plug>GitDiffViewScrollUp"
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewScrollUp"
   eq(
     child.lua_func(function()
       return #_G.smooth_scroll_sleep_calls
@@ -257,7 +257,7 @@ line3
   )
 
   child.lua_func(function()
-    M.open_diff_view { diff_type = "worktree-index" }
+    M.open_multi_file_diff_view { diff_type = "worktree-index" }
   end)
 
   expect_state(function()
@@ -293,7 +293,7 @@ T["diff view"]["preserves empty and trailing snapshot lines"]["keeps line bounda
   expected_old_lines
 )
   setup_diff_view_test(filename, worktree_lines, index_content)
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
   end)
@@ -303,18 +303,64 @@ end
 
 T["diff view"]["shows an empty file list when there are no changed files"] = function()
   mock_system_responses { ["git diff --name-only"] = { stdout = "" } }
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
   end)
   eq(get_file_list_lines(), { "" })
 end
 
+T["diff view"]["loads a single diff from the current buffer path"] = function()
+  set_named_buffer("single.txt", { "worktree" })
+  mock_system_responses { ["git show :single.txt"] = { stdout = "index snapshot\n" } }
+
+  child.lua("M.open_single_file_diff_view(...)", { { diff_type = "worktree-index" } })
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 2
+  end)
+  expect_state(function()
+    return child.lua_func(function()
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        if vim.wo[win].winbar == "HEAD" then
+          return vim.deep_equal(
+            vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, -1, false),
+            {
+              "index snapshot",
+            }
+          )
+        end
+      end
+      return false
+    end)
+  end)
+end
+
+T["diff view"]["closes the single-file view and restores the worktree cursor"] = function()
+  set_named_buffer("single.txt", { "one", "two", "three" })
+  child.api.nvim_win_set_cursor(0, { 2, 1 })
+  mock_system_responses { ["git show :single.txt"] = { stdout = "old version\n" } }
+  local worktree_bufnr = child.api.nvim_get_current_buf()
+  local edit_tab = child.api.nvim_get_current_tabpage()
+
+  child.lua("M.open_single_file_diff_view(...)", { { diff_type = "worktree-index" } })
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 2
+  end)
+  child.type_keys "<Plug>GitDiffsSingleFileDiffViewClose"
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 1
+  end)
+
+  eq(child.api.nvim_get_current_tabpage(), edit_tab)
+  eq(child.api.nvim_get_current_buf(), worktree_bufnr)
+  eq(child.api.nvim_win_get_cursor(0), { 2, 1 })
+end
+
 T["diff view"]["notifies when scroll keymaps no longer have a diff window"] = function()
   set_named_buffer("a.txt", { "a" })
   mock_read_index_files { ["a.txt"] = "old a\n" }
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\n" } }
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return #child.api.nvim_tabpage_list_wins(0) == 3
   end)
@@ -328,13 +374,13 @@ T["diff view"]["notifies when scroll keymaps no longer have a diff window"] = fu
   mock_notify()
   child.cmd "new"
   child.api.nvim_win_set_buf(0, files_bufnr)
-  child.type_keys "<Plug>GitDiffViewScrollDown"
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewScrollDown"
   expect_state(function()
     return child.lua_func(function()
       return #rawget(_G, "notifications") == 1
     end)
   end)
-  child.type_keys "<Plug>GitDiffViewScrollUp"
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewScrollUp"
   expect_state(function()
     return child.lua_func(function()
       return #rawget(_G, "notifications") == 2
@@ -363,7 +409,7 @@ T["diff view"]["switches to the selected file buffer in the original tab"] = fun
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\nb.txt\n" } }
   local edit_tab = child.api.nvim_get_current_tabpage()
 
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     local lines = get_file_list_lines()
     return #child.api.nvim_tabpage_list_wins(0) == 3 and lines ~= nil and lines[1] == "a.txt"
@@ -372,7 +418,7 @@ T["diff view"]["switches to the selected file buffer in the original tab"] = fun
   expect_state(function()
     return child.api.nvim_get_current_line() == "b.txt"
   end)
-  child.type_keys "<Plug>GitDiffViewSwitchToBuffer"
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer"
 
   eq(child.api.nvim_get_current_tabpage(), edit_tab)
   eq(child.api.nvim_get_current_buf(), b_bufnr)
@@ -381,14 +427,14 @@ end
 
 T["diff view"]["does nothing when switching from an empty file list"] = function()
   mock_system_responses { ["git diff --name-only"] = { stdout = "" } }
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return #child.api.nvim_tabpage_list_wins(0) == 3
   end)
   local diff_tab = child.api.nvim_get_current_tabpage()
   mock_notify()
 
-  child.type_keys "<Plug>GitDiffViewSwitchToBuffer"
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer"
 
   eq(child.api.nvim_get_current_tabpage(), diff_tab)
   eq(#child.api.nvim_list_tabpages(), 2)
@@ -406,7 +452,7 @@ T["diff view"]["quits when closing the last diff tab after the original tab clos
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\n" } }
   local edit_tab = child.api.nvim_get_current_tabpage()
 
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return #child.api.nvim_tabpage_list_wins(0) == 3
   end)
@@ -437,7 +483,7 @@ T["diff view"]["does nothing when the original tab has been closed"] = function(
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\n" } }
   local edit_tab = child.api.nvim_get_current_tabpage()
 
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return #child.api.nvim_tabpage_list_wins(0) == 3
   end)
@@ -447,7 +493,7 @@ T["diff view"]["does nothing when the original tab has been closed"] = function(
   child.api.nvim_set_current_tabpage(diff_tab)
   mock_notify()
 
-  child.type_keys "<Plug>GitDiffViewSwitchToBuffer"
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer"
 
   eq(child.api.nvim_get_current_tabpage(), diff_tab)
   eq(#child.api.nvim_list_tabpages(), 1)
@@ -491,7 +537,7 @@ T["diff view"]["preserves HEAD and upstream or merge-base snapshot lines"]["keep
     })
   end)
 
-  child.lua("M.open_diff_view(...)", { { diff_type = diff_type } })
+  child.lua("M.open_multi_file_diff_view(...)", { { diff_type = diff_type } })
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2
       and #child.api.nvim_tabpage_list_wins(0) == 3
@@ -601,14 +647,14 @@ T["diff view"]["refreshes the file list"] = function()
   set_named_buffer("a.txt", { "a" })
   mock_read_index_files { ["a.txt"] = "old\n" }
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\n" } }
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     local lines = get_file_list_lines()
     return #child.api.nvim_list_tabpages() == 2 and lines ~= nil and lines[1] == "a.txt"
   end)
 
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\nb.txt\n" } }
-  child.type_keys "<Plug>GitDiffViewRefresh"
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewRefresh"
   expect_state(function()
     return vim.deep_equal(get_file_list_lines(), { "a.txt", "b.txt" })
   end)
@@ -639,7 +685,7 @@ T["diff view"]["ignores pending snapshots after closing and reopening"] = functi
     end
   end)
 
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
   end)
@@ -658,7 +704,7 @@ T["diff view"]["ignores pending snapshots after closing and reopening"] = functi
     rawget(_G, "mock_snapshot_state").snapshot = "fresh\n"
   end)
 
-  child.lua [[M.open_diff_view { diff_type = "worktree-index" }]]
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return child.lua_func(function()
       local state = rawget(_G, "mock_snapshot_state")
@@ -691,7 +737,7 @@ T["diff view"]["updates old/new content on file selection"] = function()
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\nb.txt\n" } }
 
   child.lua_func(function()
-    M.open_diff_view { diff_type = "worktree-index" }
+    M.open_multi_file_diff_view { diff_type = "worktree-index" }
   end)
 
   expect_state(function()
@@ -721,7 +767,7 @@ line3
   )
 
   child.lua_func(function()
-    M.toggle_diff_view { diff_type = "worktree-index" }
+    M.toggle_multi_file_diff_view { diff_type = "worktree-index" }
   end)
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2
@@ -729,7 +775,7 @@ line3
   eq(#child.api.nvim_list_tabpages(), 2)
 
   child.lua_func(function()
-    M.toggle_diff_view { diff_type = "worktree-index" }
+    M.toggle_multi_file_diff_view { diff_type = "worktree-index" }
   end)
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 1
@@ -757,7 +803,7 @@ line3
   )
 
   child.lua_func(function()
-    M.open_diff_view { diff_type = "worktree-index" }
+    M.open_multi_file_diff_view { diff_type = "worktree-index" }
   end)
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
@@ -772,7 +818,7 @@ line3
   eq(#child.api.nvim_list_tabpages(), 1)
 
   child.lua_func(function()
-    M.open_diff_view { diff_type = "worktree-index" }
+    M.open_multi_file_diff_view { diff_type = "worktree-index" }
   end)
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2

@@ -6,13 +6,15 @@ Table of Contents                                *git-diffs-table-of-contents*
 Features ................................................ |git-diffs-features|
 Example config .................................... |git-diffs-example-config|
 Plug remaps .......................................... |git-diffs-plug-remaps|
-`<Plug>GitDiffViewScrollDown` ........ |git-diffs-<plug>gitdiffviewscrolldown|
-`<Plug>GitDiffViewScrollUp` ............ |git-diffs-<plug>gitdiffviewscrollup|
-`<Plug>GitDiffViewRefresh` .............. |git-diffs-<plug>gitdiffviewrefresh|
-`<Plug>GitDiffViewSwitchToBuffer`  |git-diffs-<plug>gitdiffviewswitchtobuffer|
+`<Plug>GitDiffsMultiFileDiffViewScrollDown`  |git-diffs-<plug>gitdiffsmultifilediffviewscrolldown|
+`<Plug>GitDiffsMultiFileDiffViewScrollUp`  |git-diffs-<plug>gitdiffsmultifilediffviewscrollup|
+`<Plug>GitDiffsMultiFileDiffViewRefresh`  |git-diffs-<plug>gitdiffsmultifilediffviewrefresh|
+`<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer`  |git-diffs-<plug>gitdiffsmultifilediffviewswitchtobuffer|
+`<Plug>GitDiffsSingleFileDiffViewClose`  |git-diffs-<plug>gitdiffssinglefilediffviewclose|
 API .......................................................... |git-diffs-api|
-`require("git-diffs").open_diff_view(opts)`  |git-diffs-require("git-diffs").open_diff_view(opts)|
-`require("git-diffs").toggle_diff_view(opts)`  |git-diffs-require("git-diffs").toggle_diff_view(opts)|
+`require("git-diffs").open_multi_file_diff_view(opts)`  |git-diffs-require("git-diffs").open_multi_file_diff_view(opts)|
+`require("git-diffs").open_single_file_diff_view(opts)`  |git-diffs-require("git-diffs").open_single_file_diff_view(opts)|
+`require("git-diffs").toggle_multi_file_diff_view(opts)`  |git-diffs-require("git-diffs").toggle_multi_file_diff_view(opts)|
 Autocommand events ............................ |git-diffs-autocommand-events|
 `User GitDiffViewOpen` ...................... |git-diffs-user-gitdiffviewopen|
 Filetype ................................................ |git-diffs-filetype|
@@ -29,8 +31,8 @@ FEATURES                                                  *git-diffs-features*
 
 
 - 1 source file (~500 LOC), no dependencies
-- Compare worktree, index, HEAD, upstream, and merge-base versions in a
-  side-by-side split with file list
+- Compare worktree, index, HEAD, upstream, and merge-base versions in
+  single-file and multi-file side-by-side views
 
 ------------------------------------------------------------------------------
 EXAMPLE CONFIG                                      *git-diffs-example-config*
@@ -45,21 +47,21 @@ EXAMPLE CONFIG                                      *git-diffs-example-config*
       group = vim.api.nvim_create_augroup("GitDiffViewRemaps", { clear = true }),
       pattern = "git-diffs-view-file-list",
       callback = function()
-        vim.keymap.set("n", "<c-d>", "<Plug>GitDiffViewScrollDown", { buffer = true })
-        vim.keymap.set("n", "<c-u>", "<Plug>GitDiffViewScrollUp", { buffer = true })
-        vim.keymap.set("n", "<leader>e", "<Plug>GitDiffViewRefresh", { buffer = true })
-        vim.keymap.set("n", "o", "<Plug>GitDiffViewSwitchToBuffer", { buffer = true })
+        vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiFileDiffViewScrollDown", { buffer = true })
+        vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiFileDiffViewScrollUp", { buffer = true })
+        vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiFileDiffViewRefresh", { buffer = true })
+        vim.keymap.set("n", "o", "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer", { buffer = true })
       end,
     })
     
     vim.keymap.set("n", "<leader>gd", function()
-      require("git-diffs").toggle_diff_view { diff_type = "worktree-index" }
+      require("git-diffs").toggle_multi_file_diff_view { diff_type = "worktree-index" }
     end)
     vim.keymap.set("n", "<leader>gD", function()
-      require("git-diffs").toggle_diff_view { diff_type = "worktree-head" }
+      require("git-diffs").toggle_multi_file_diff_view { diff_type = "worktree-head" }
     end)
     vim.keymap.set("n", "<leader>gm", function()
-      require("git-diffs").toggle_diff_view { diff_type = "head-mergebase" }
+      require("git-diffs").toggle_multi_file_diff_view { diff_type = "head-mergebase" }
     end)
 <
 
@@ -69,28 +71,34 @@ PLUG REMAPS                                            *git-diffs-plug-remaps*
 
 
                                                                               
-`<PLUG>GITDIFFVIEWSCROLLDOWN`          *git-diffs-<plug>gitdiffviewscrolldown*
+`<PLUG>GITDIFFSMULTIFILEDIFFVIEWSCROLLDOWN`*git-diffs-<plug>gitdiffsmultifilediffviewscrolldown*
 
 Scroll down in the diff view (both splits simultaneously).
 
 
                                                                               
-`<PLUG>GITDIFFVIEWSCROLLUP`              *git-diffs-<plug>gitdiffviewscrollup*
+`<PLUG>GITDIFFSMULTIFILEDIFFVIEWSCROLLUP`*git-diffs-<plug>gitdiffsmultifilediffviewscrollup*
 
 Scroll up in the diff view (both splits simultaneously).
 
 
                                                                               
-`<PLUG>GITDIFFVIEWREFRESH`                *git-diffs-<plug>gitdiffviewrefresh*
+`<PLUG>GITDIFFSMULTIFILEDIFFVIEWREFRESH`*git-diffs-<plug>gitdiffsmultifilediffviewrefresh*
 
 Refresh the list of files with diffs.
 
 
                                                                               
-`<PLUG>GITDIFFVIEWSWITCHTOBUFFER`  *git-diffs-<plug>gitdiffviewswitchtobuffer*
+`<PLUG>GITDIFFSMULTIFILEDIFFVIEWSWITCHTOBUFFER`*git-diffs-<plug>gitdiffsmultifilediffviewswitchtobuffer*
 
 Switch to the selected file's buffer in the tab from which the diff view was
 opened.
+
+
+                                                                              
+`<PLUG>GITDIFFSSINGLEFILEDIFFVIEWCLOSE`*git-diffs-<plug>gitdiffssinglefilediffviewclose*
+
+Close the single-file diff view and return to the worktree buffer.
 
 
 ------------------------------------------------------------------------------
@@ -99,7 +107,7 @@ API                                                            *git-diffs-api*
 
 
                                                                               
-`REQUIRE("GIT-DIFFS").OPEN_DIFF_VIEW(OPTS)`*git-diffs-require("git-diffs").open_diff_view(opts)*
+`REQUIRE("GIT-DIFFS").OPEN_MULTI_FILE_DIFF_VIEW(OPTS)`*git-diffs-require("git-diffs").open_multi_file_diff_view(opts)*
 
 Opens a new tab with a 3-pane diff view:
 
@@ -119,9 +127,21 @@ unless modified buffers prevent quitting.
 
 
                                                                               
-`REQUIRE("GIT-DIFFS").TOGGLE_DIFF_VIEW(OPTS)`*git-diffs-require("git-diffs").toggle_diff_view(opts)*
+`REQUIRE("GIT-DIFFS").OPEN_SINGLE_FILE_DIFF_VIEW(OPTS)`*git-diffs-require("git-diffs").open_single_file_diff_view(opts)*
 
-Toggles the diff view: opens it if not open, closes it if already open.
+Open a side-by-side diff for the current worktree buffer, comparing it with
+the selected older file location. `opts` accepts a worktree diff type and
+optional `upstream_branch`.
+
+Invoke `<Plug>GitDiffsSingleFileDiffViewClose` to close the view and return to
+the worktree buffer.
+
+
+                                                                              
+`REQUIRE("GIT-DIFFS").TOGGLE_MULTI_FILE_DIFF_VIEW(OPTS)`*git-diffs-require("git-diffs").toggle_multi_file_diff_view(opts)*
+
+Toggles the multi-file diff view: opens it if not open, closes it if already
+open.
 
 
 ------------------------------------------------------------------------------

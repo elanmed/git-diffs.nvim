@@ -1,7 +1,3 @@
-git-diffs-<plug>gitdiffviewrefresh	git-diffs.txt	/*git-diffs-<plug>gitdiffviewrefresh*
-git-diffs-<plug>gitdiffviewscrolldown	git-diffs.txt	/*git-diffs-<plug>gitdiffviewscrolldown*
-git-diffs-<plug>gitdiffviewscrollup	git-diffs.txt	/*git-diffs-<plug>gitdiffviewscrollup*
-git-diffs-<plug>gitdiffviewswitchtobuffer	git-diffs.txt	/*git-diffs-<plug>gitdiffviewswitchtobuffer*
 git-diffs-api	git-diffs.txt	/*git-diffs-api*
 git-diffs-autocommand-events	git-diffs.txt	/*git-diffs-autocommand-events*
 git-diffs-example-config	git-diffs.txt	/*git-diffs-example-config*
