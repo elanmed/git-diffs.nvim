@@ -69,9 +69,7 @@ end
 local function get_file_list_lines()
   for _, win in ipairs(child.api.nvim_tabpage_list_wins(0)) do
     local bufnr = child.api.nvim_win_get_buf(win)
-    if
-      child.api.nvim_buf_get_option(bufnr, "filetype") == "git-diffs-multi-file-diff-view-file-list"
-    then
+    if child.api.nvim_buf_get_option(bufnr, "filetype") == "gitdiffslist" then
       return child.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     end
   end
@@ -128,7 +126,7 @@ local function get_diff_view_windows(filename)
     local bufname = child.api.nvim_buf_get_name(bufnr)
     local basename = child.fn.fnamemodify(bufname, ":t")
 
-    if filetype == "git-diffs-multi-file-diff-view-file-list" then
+    if filetype == "gitdiffslist" then
       files_win = win
     elseif buftype == "" and basename == filename then
       new_win = win
@@ -269,7 +267,7 @@ T["diff view"] = new_set()
 T["diff view"]["smooth scroll defaults to enabled"] = function()
   setup_diff_view_scroll_test()
 
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewScrollDown"
+  child.type_keys "<Plug>GitDiffsMultiScrollDown"
   eq(
     child.lua_func(function()
       return #_G.smooth_scroll_sleep_calls
@@ -282,7 +280,7 @@ T["diff view"]["smooth scroll can be disabled"] = function()
   child.g.git_diffs = { smooth_scroll = false }
   setup_diff_view_scroll_test()
 
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewScrollUp"
+  child.type_keys "<Plug>GitDiffsMultiScrollUp"
   eq(
     child.lua_func(function()
       return #_G.smooth_scroll_sleep_calls
@@ -349,14 +347,14 @@ end
 T["diff view"]["moves the file list from either diff window"] = function()
   local new_win, old_win, files_win = open_two_file_diff_view()
   child.api.nvim_set_current_win(old_win)
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewFileListDown"
+  child.type_keys "<Plug>GitDiffsMultiListDown"
   eq(child.api.nvim_win_get_cursor(files_win)[1], 2)
   expect_state(function()
     return child.api.nvim_win_get_buf(new_win) == child.fn.bufnr "b.txt"
   end)
 
   child.api.nvim_set_current_win(new_win)
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewFileListUp"
+  child.type_keys "<Plug>GitDiffsMultiListUp"
   eq(child.api.nvim_win_get_cursor(files_win)[1], 1)
 end
 
@@ -365,7 +363,7 @@ T["diff view"]["wraps down from the last file to the first"] = function()
   child.api.nvim_set_current_win(files_win)
   child.api.nvim_win_set_cursor(files_win, { 2, 0 })
   child.api.nvim_set_current_win(new_win)
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewFileListDown"
+  child.type_keys "<Plug>GitDiffsMultiListDown"
   eq(child.api.nvim_win_get_cursor(files_win)[1], 1)
 end
 
@@ -374,7 +372,7 @@ T["diff view"]["wraps up from the first file to the last"] = function()
   child.api.nvim_set_current_win(files_win)
   child.api.nvim_win_set_cursor(files_win, { 1, 0 })
   child.api.nvim_set_current_win(old_win)
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewFileListUp"
+  child.type_keys "<Plug>GitDiffsMultiListUp"
   eq(child.api.nvim_win_get_cursor(files_win)[1], 2)
 end
 
@@ -449,7 +447,7 @@ T["diff view"]["closes the single-file view and restores the worktree cursor"] =
   local edit_tab = child.api.nvim_get_current_tabpage()
 
   open_single_file_diff_view()
-  child.type_keys "<Plug>GitDiffsSingleFileDiffViewClose"
+  child.type_keys "<Plug>GitDiffsSingleClose"
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 1
   end)
@@ -493,7 +491,7 @@ T["diff view"]["toggles the single-file view and closes both diff windows"] = fu
   local worktree_bufnr = child.api.nvim_get_current_buf()
   child.lua_func(function()
     vim.api.nvim_create_autocmd("User", {
-      pattern = "GitDiffsSingleFileDiffViewOpen",
+      pattern = "GitDiffsSingleOpen",
       callback = function(event)
         _G.single_file_diff_windows = event.data
       end,
@@ -534,13 +532,13 @@ T["diff view"]["notifies when scroll keymaps no longer have a diff window"] = fu
   mock_notify()
   child.cmd "new"
   child.api.nvim_win_set_buf(0, files_bufnr)
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewScrollDown"
+  child.type_keys "<Plug>GitDiffsMultiScrollDown"
   expect_state(function()
     return child.lua_func(function()
       return #rawget(_G, "notifications") == 1
     end)
   end)
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewScrollUp"
+  child.type_keys "<Plug>GitDiffsMultiScrollUp"
   expect_state(function()
     return child.lua_func(function()
       return #rawget(_G, "notifications") == 2
@@ -578,7 +576,7 @@ T["diff view"]["switches to the selected file buffer in the original tab"] = fun
   expect_state(function()
     return child.api.nvim_get_current_line() == "b.txt"
   end)
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer"
+  child.type_keys "<Plug>GitDiffsMultiSwitchBuffer"
 
   eq(child.api.nvim_get_current_tabpage(), edit_tab)
   eq(child.api.nvim_get_current_buf(), b_bufnr)
@@ -594,7 +592,7 @@ T["diff view"]["does nothing when switching from an empty file list"] = function
   local diff_tab = child.api.nvim_get_current_tabpage()
   mock_notify()
 
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer"
+  child.type_keys "<Plug>GitDiffsMultiSwitchBuffer"
 
   eq(child.api.nvim_get_current_tabpage(), diff_tab)
   eq(#child.api.nvim_list_tabpages(), 2)
@@ -653,7 +651,7 @@ T["diff view"]["does nothing when the original tab has been closed"] = function(
   child.api.nvim_set_current_tabpage(diff_tab)
   mock_notify()
 
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer"
+  child.type_keys "<Plug>GitDiffsMultiSwitchBuffer"
 
   eq(child.api.nvim_get_current_tabpage(), diff_tab)
   eq(#child.api.nvim_list_tabpages(), 1)
@@ -689,7 +687,7 @@ T["diff view"]["preserves HEAD and upstream or merge-base snapshot lines"]["keep
   }
   child.lua_func(function()
     vim.api.nvim_create_autocmd("User", {
-      pattern = "GitDiffsMultiFileDiffViewOpen",
+      pattern = "GitDiffsMultiOpen",
       once = true,
       callback = function(event)
         rawset(_G, "diff_view_data", event.data)
@@ -814,7 +812,7 @@ T["diff view"]["refreshes the file list"] = function()
   end)
 
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\nb.txt\n" } }
-  child.type_keys "<Plug>GitDiffsMultiFileDiffViewRefresh"
+  child.type_keys "<Plug>GitDiffsMultiRefresh"
   expect_state(function()
     return vim.deep_equal(get_file_list_lines(), { "a.txt", "b.txt" })
   end)

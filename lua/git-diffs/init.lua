@@ -360,8 +360,8 @@ end
 
 local iter = 0
 
-local file_list_down_plug = "<Plug>GitDiffsMultiFileDiffViewFileListDown"
-local file_list_up_plug = "<Plug>GitDiffsMultiFileDiffViewFileListUp"
+local file_list_down_plug = "<Plug>GitDiffsMultiListDown"
+local file_list_up_plug = "<Plug>GitDiffsMultiListUp"
 
 --- @param nrs MultiFileDiffViewNrs
 --- @param direction integer
@@ -437,7 +437,7 @@ local find_multi_file_diff_view = function()
   for _, tabnr in ipairs(vim.api.nvim_list_tabpages()) do
     for _, winnr in ipairs(vim.api.nvim_tabpage_list_wins(tabnr)) do
       local bufnr = vim.api.nvim_win_get_buf(winnr)
-      if vim.bo[bufnr].filetype == "git-diffs-multi-file-diff-view-file-list" then
+      if vim.bo[bufnr].filetype == "gitdiffslist" then
         return { diff_tabnr = tabnr, file_list_winnr = winnr }
       end
     end
@@ -549,7 +549,7 @@ local init_multi_file_diff_view_nrs = function()
   local file_list_winnr = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(file_list_winnr, file_list_bufnr)
   vim.wo[file_list_winnr].winbar = "Files"
-  vim.bo[file_list_bufnr].filetype = "git-diffs-multi-file-diff-view-file-list"
+  vim.bo[file_list_bufnr].filetype = "gitdiffslist"
 
   return {
     new_winnr = new_winnr,
@@ -606,7 +606,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
   register_file_list_navigation_keymaps(nrs, nrs.new_bufnr)
 
   vim.api.nvim_create_autocmd("CursorMoved", {
-    group = vim.api.nvim_create_augroup("GitDiffsMultiFileDiffViewCursorMove", { clear = true }),
+    group = vim.api.nvim_create_augroup("GitDiffsMultiCursor", { clear = true }),
     buf = nrs.file_list_bufnr,
     callback = function()
       if not vim.api.nvim_win_is_valid(nrs.file_list_winnr) then
@@ -625,7 +625,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
   })
 
   register_diff_view_close_callback(
-    "GitDiffsMultiFileDiffViewFileListWinClosed",
+    "GitDiffsMultiWinClosed",
     nrs.diff_tabnr,
     { nrs.new_winnr, nrs.old_winnr, nrs.file_list_winnr },
     function()
@@ -636,7 +636,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
 
   vim.keymap.set(
     "n",
-    "<Plug>GitDiffsMultiFileDiffViewScrollDown",
+    "<Plug>GitDiffsMultiScrollDown",
     cb_async(function()
       scroll_diff_view(nrs.old_winnr, "j")
     end),
@@ -645,7 +645,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
 
   vim.keymap.set(
     "n",
-    "<Plug>GitDiffsMultiFileDiffViewScrollUp",
+    "<Plug>GitDiffsMultiScrollUp",
     cb_async(function()
       scroll_diff_view(nrs.old_winnr, "k")
     end),
@@ -654,7 +654,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
 
   vim.keymap.set(
     "n",
-    "<Plug>GitDiffsMultiFileDiffViewRefresh",
+    "<Plug>GitDiffsMultiRefresh",
     cb_async(function()
       vim.async.await(populate_multi_file_file_list(nrs, opts))
       ensure_main_loop()
@@ -663,7 +663,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
     { desc = "Refresh file list", buffer = nrs.file_list_bufnr }
   )
 
-  vim.keymap.set("n", "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer", function()
+  vim.keymap.set("n", "<Plug>GitDiffsMultiSwitchBuffer", function()
     local rel_filename = vim.api.nvim_win_call(nrs.file_list_winnr, vim.api.nvim_get_current_line)
     if rel_filename == nil or rel_filename == "" then
       notify(vim.log.levels.WARN, "No file is selected")
@@ -679,7 +679,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
   end, { desc = "Switch to selected file buffer", buffer = nrs.file_list_bufnr })
 
   vim.api.nvim_exec_autocmds("User", {
-    pattern = "GitDiffsMultiFileDiffViewOpen",
+    pattern = "GitDiffsMultiOpen",
     data = {
       old_winnr = nrs.old_winnr,
       new_winnr = nrs.new_winnr,
@@ -800,7 +800,7 @@ end
 --- @param nrs SingleFileDiffViewNrs
 local register_single_file_diff_view_callbacks = function(nrs)
   vim.api.nvim_exec_autocmds("User", {
-    pattern = "GitDiffsSingleFileDiffViewOpen",
+    pattern = "GitDiffsSingleOpen",
     data = {
       old_winnr = nrs.old_winnr,
       worktree_winnr = nrs.worktree_winnr,
@@ -810,12 +810,12 @@ local register_single_file_diff_view_callbacks = function(nrs)
   })
 
   register_diff_view_close_callback(
-    "GitDiffsSingleFileDiffViewWinClosed",
+    "GitDiffsSingleWinClosed",
     nrs.diff_tabnr,
     { nrs.worktree_winnr, nrs.old_winnr }
   )
 
-  vim.keymap.set("n", "<Plug>GitDiffsSingleFileDiffViewClose", function()
+  vim.keymap.set("n", "<Plug>GitDiffsSingleClose", function()
     close_single_file_diff_view(nrs)
   end, { buffer = nrs.worktree_bufnr })
 end

@@ -1,3 +1,10 @@
+git-diffs-<plug>gitdiffsmultilistdown	git-diffs.txt	/*git-diffs-<plug>gitdiffsmultilistdown*
+git-diffs-<plug>gitdiffsmultilistup	git-diffs.txt	/*git-diffs-<plug>gitdiffsmultilistup*
+git-diffs-<plug>gitdiffsmultirefresh	git-diffs.txt	/*git-diffs-<plug>gitdiffsmultirefresh*
+git-diffs-<plug>gitdiffsmultiscrolldown	git-diffs.txt	/*git-diffs-<plug>gitdiffsmultiscrolldown*
+git-diffs-<plug>gitdiffsmultiscrollup	git-diffs.txt	/*git-diffs-<plug>gitdiffsmultiscrollup*
+git-diffs-<plug>gitdiffsmultiswitchbuffer	git-diffs.txt	/*git-diffs-<plug>gitdiffsmultiswitchbuffer*
+git-diffs-<plug>gitdiffssingleclose	git-diffs.txt	/*git-diffs-<plug>gitdiffssingleclose*
 git-diffs-api	git-diffs.txt	/*git-diffs-api*
 git-diffs-autocommand-events	git-diffs.txt	/*git-diffs-autocommand-events*
 git-diffs-example-config	git-diffs.txt	/*git-diffs-example-config*
@@ -6,4 +13,6 @@ git-diffs-filetype	git-diffs.txt	/*git-diffs-filetype*
 git-diffs-git-diffs.nvim	git-diffs.txt	/*git-diffs-git-diffs.nvim*
 git-diffs-plug-remaps	git-diffs.txt	/*git-diffs-plug-remaps*
 git-diffs-table-of-contents	git-diffs.txt	/*git-diffs-table-of-contents*
+git-diffs-user-gitdiffsmultiopen	git-diffs.txt	/*git-diffs-user-gitdiffsmultiopen*
+git-diffs-user-gitdiffssingleopen	git-diffs.txt	/*git-diffs-user-gitdiffssingleopen*
 git-diffs.txt	git-diffs.txt	/*git-diffs.txt*

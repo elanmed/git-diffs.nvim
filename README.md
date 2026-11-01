@@ -16,12 +16,12 @@ vim.g.git_diffs = {
 
 vim.api.nvim_create_autocmd({ "FileType" }, {
   group = vim.api.nvim_create_augroup("GitDiffViewRemaps", { clear = true }),
-  pattern = "git-diffs-multi-file-diff-view-file-list",
+  pattern = "gitdiffslist",
   callback = function()
-    vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiFileDiffViewScrollDown", { buffer = true })
-    vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiFileDiffViewScrollUp", { buffer = true })
-    vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiFileDiffViewRefresh", { buffer = true })
-    vim.keymap.set("n", "o", "<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer", { buffer = true })
+    vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiScrollDown", { buffer = true })
+    vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiScrollUp", { buffer = true })
+    vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiRefresh", { buffer = true })
+    vim.keymap.set("n", "o", "<Plug>GitDiffsMultiSwitchBuffer", { buffer = true })
   end,
 })
 
@@ -38,31 +38,31 @@ end)
 
 ## Plug remaps
 
-### `<Plug>GitDiffsMultiFileDiffViewScrollDown`
+### `<Plug>GitDiffsMultiScrollDown`
 
 Scroll down in the diff view (both splits simultaneously).
 
-### `<Plug>GitDiffsMultiFileDiffViewScrollUp`
+### `<Plug>GitDiffsMultiScrollUp`
 
 Scroll up in the diff view (both splits simultaneously).
 
-### `<Plug>GitDiffsMultiFileDiffViewFileListDown`
+### `<Plug>GitDiffsMultiListDown`
 
 Move to the next file in the file list from either diff pane; wraps from the last file to the first.
 
-### `<Plug>GitDiffsMultiFileDiffViewFileListUp`
+### `<Plug>GitDiffsMultiListUp`
 
 Move to the previous file in the file list from either diff pane; wraps from the first file to the last.
 
-### `<Plug>GitDiffsMultiFileDiffViewRefresh`
+### `<Plug>GitDiffsMultiRefresh`
 
 Refresh the list of files with diffs.
 
-### `<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer`
+### `<Plug>GitDiffsMultiSwitchBuffer`
 
 Switch to the selected file's buffer in the tab from which the diff view was opened.
 
-### `<Plug>GitDiffsSingleFileDiffViewClose`
+### `<Plug>GitDiffsSingleClose`
 
 Close the single-file diff view and return to the worktree buffer.
 
@@ -87,7 +87,7 @@ If the diff view tab already exists, switches to it instead of creating a new on
 
 Open a side-by-side diff for the current worktree buffer, comparing it with the selected older file location. `opts` accepts a worktree diff type and optional `upstream_branch`.
 
-Invoke `<Plug>GitDiffsSingleFileDiffViewClose` to close the view and return to the worktree buffer.
+Invoke `<Plug>GitDiffsSingleClose` to close the view and return to the worktree buffer.
 
 ### `require("git-diffs").toggle_multi_file_diff_view(opts)`
 
@@ -99,14 +99,14 @@ Toggles the single-file diff view: opens it if not open, closes it if already op
 
 ## Autocommand events
 
-### `User GitDiffsMultiFileDiffViewOpen`
+### `User GitDiffsMultiOpen`
 
 Fired after the multi-file diff view opens. `data` contains `old_winnr`, `new_winnr`, `file_list_winnr`, `old_bufnr`, `new_bufnr`, `file_list_bufnr`.
 
-### `User GitDiffsSingleFileDiffViewOpen`
+### `User GitDiffsSingleOpen`
 
 Fired after the single-file diff view opens. `data` contains `old_winnr`, `worktree_winnr`, `old_bufnr`, `worktree_bufnr`.
 
 ## Filetype
 
-The file list buffer in the diff view uses `git-diffs-multi-file-diff-view-file-list` filetype for custom highlighting or keymaps.
+The file list buffer in the diff view uses `gitdiffslist` filetype for custom highlighting or keymaps.
