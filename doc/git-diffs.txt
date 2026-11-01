@@ -1,4 +1,4 @@
-*git-diffs.txt*                                   Last change: 2026 October 31
+*git-diffs.txt*                                  Last change: 2026 November 01
 
 ==============================================================================
 Table of Contents                                *git-diffs-table-of-contents*
@@ -8,6 +8,8 @@ Example config .................................... |git-diffs-example-config|
 Plug remaps .......................................... |git-diffs-plug-remaps|
 `<Plug>GitDiffsMultiFileDiffViewScrollDown`  |git-diffs-<plug>gitdiffsmultifilediffviewscrolldown|
 `<Plug>GitDiffsMultiFileDiffViewScrollUp`  |git-diffs-<plug>gitdiffsmultifilediffviewscrollup|
+`<Plug>GitDiffsMultiFileDiffViewFileListDown`  |git-diffs-<plug>gitdiffsmultifilediffviewfilelistdown|
+`<Plug>GitDiffsMultiFileDiffViewFileListUp`  |git-diffs-<plug>gitdiffsmultifilediffviewfilelistup|
 `<Plug>GitDiffsMultiFileDiffViewRefresh`  |git-diffs-<plug>gitdiffsmultifilediffviewrefresh|
 `<Plug>GitDiffsMultiFileDiffViewSwitchToBuffer`  |git-diffs-<plug>gitdiffsmultifilediffviewswitchtobuffer|
 `<Plug>GitDiffsSingleFileDiffViewClose`  |git-diffs-<plug>gitdiffssinglefilediffviewclose|
@@ -85,6 +87,20 @@ Scroll up in the diff view (both splits simultaneously).
 
 
                                                                               
+`<PLUG>GITDIFFSMULTIFILEDIFFVIEWFILELISTDOWN`*git-diffs-<plug>gitdiffsmultifilediffviewfilelistdown*
+
+Move to the next file in the file list from either diff pane; wraps from the
+last file to the first.
+
+
+
+`<PLUG>GITDIFFSMULTIFILEDIFFVIEWFILELISTUP`*git-diffs-<plug>gitdiffsmultifilediffviewfilelistup*
+
+Move to the previous file in the file list from either diff pane; wraps from
+the first file to the last.
+
+
+
 `<PLUG>GITDIFFSMULTIFILEDIFFVIEWREFRESH`*git-diffs-<plug>gitdiffsmultifilediffviewrefresh*
 
 Refresh the list of files with diffs.

@@ -154,6 +154,25 @@ local function setup_diff_view_test(filename, worktree_lines, index_content)
   mock_system_responses { ["git diff --name-only"] = { stdout = filename .. "\n" } }
 end
 
+local function open_two_file_diff_view()
+  set_named_buffer("a.txt", { "new a" })
+  child.cmd "badd b.txt"
+  local b_bufnr = child.fn.bufnr "b.txt"
+  child.api.nvim_buf_set_lines(b_bufnr, 0, -1, true, { "new b" })
+  mock_read_index_files {
+    ["a.txt"] = "old a\n",
+    ["b.txt"] = "old b\n",
+  }
+  mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\nb.txt\n" } }
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    local lines = get_file_list_lines()
+    local new_win = get_diff_view_windows "a.txt"
+    return lines ~= nil and lines[2] == "b.txt" and new_win ~= nil
+  end)
+  return get_diff_view_windows "a.txt"
+end
+
 --- @param filename string
 --- @param worktree_lines string[]
 --- @param snapshot_response MockSystemResult
@@ -325,6 +344,38 @@ T["diff view"]["preserves empty and trailing snapshot lines"]["keeps line bounda
   end)
   local _, old_win = get_diff_view_windows(filename)
   eq(get_win_lines(old_win), expected_old_lines)
+end
+
+T["diff view"]["moves the file list from either diff window"] = function()
+  local new_win, old_win, files_win = open_two_file_diff_view()
+  child.api.nvim_set_current_win(old_win)
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewFileListDown"
+  eq(child.api.nvim_win_get_cursor(files_win)[1], 2)
+  expect_state(function()
+    return child.api.nvim_win_get_buf(new_win) == child.fn.bufnr "b.txt"
+  end)
+
+  child.api.nvim_set_current_win(new_win)
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewFileListUp"
+  eq(child.api.nvim_win_get_cursor(files_win)[1], 1)
+end
+
+T["diff view"]["wraps down from the last file to the first"] = function()
+  local new_win, _, files_win = open_two_file_diff_view()
+  child.api.nvim_set_current_win(files_win)
+  child.api.nvim_win_set_cursor(files_win, { 2, 0 })
+  child.api.nvim_set_current_win(new_win)
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewFileListDown"
+  eq(child.api.nvim_win_get_cursor(files_win)[1], 1)
+end
+
+T["diff view"]["wraps up from the first file to the last"] = function()
+  local _, old_win, files_win = open_two_file_diff_view()
+  child.api.nvim_set_current_win(files_win)
+  child.api.nvim_win_set_cursor(files_win, { 1, 0 })
+  child.api.nvim_set_current_win(old_win)
+  child.type_keys "<Plug>GitDiffsMultiFileDiffViewFileListUp"
+  eq(child.api.nvim_win_get_cursor(files_win)[1], 2)
 end
 
 T["diff view"]["shows an empty file list when there are no changed files"] = function()

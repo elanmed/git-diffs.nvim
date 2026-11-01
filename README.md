@@ -46,6 +46,14 @@ Scroll down in the diff view (both splits simultaneously).
 
 Scroll up in the diff view (both splits simultaneously).
 
+### `<Plug>GitDiffsMultiFileDiffViewFileListDown`
+
+Move to the next file in the file list from either diff pane; wraps from the last file to the first.
+
+### `<Plug>GitDiffsMultiFileDiffViewFileListUp`
+
+Move to the previous file in the file list from either diff pane; wraps from the first file to the last.
+
 ### `<Plug>GitDiffsMultiFileDiffViewRefresh`
 
 Refresh the list of files with diffs.

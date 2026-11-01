@@ -341,6 +341,7 @@ end
 --- @field file_list_bufnr integer
 --- @field diff_tabnr integer
 --- @field edit_tabnr integer
+--- @field navigation_bufnrs integer[]
 
 --- @class OpenSingleFileDiffViewParams
 --- @field diff_type WorktreeDiffType
@@ -358,6 +359,70 @@ end
 --- @field filetype string
 
 local iter = 0
+
+local file_list_down_plug = "<Plug>GitDiffsMultiFileDiffViewFileListDown"
+local file_list_up_plug = "<Plug>GitDiffsMultiFileDiffViewFileListUp"
+
+--- @param nrs MultiFileDiffViewNrs
+--- @param direction integer
+local move_file_list_cursor = function(nrs, direction)
+  if not vim.api.nvim_win_is_valid(nrs.file_list_winnr) then
+    notify(vim.log.levels.WARN, "File list window is no longer available")
+    return
+  end
+
+  vim.api.nvim_win_call(nrs.file_list_winnr, function()
+    if direction > 0 then
+      if vim.fn.line "." == vim.fn.line "$" then
+        vim.cmd "normal! gg"
+      else
+        vim.cmd "normal! j"
+      end
+    elseif vim.fn.line "." == 1 then
+      vim.cmd "normal! G"
+    else
+      vim.cmd "normal! k"
+    end
+
+    vim.cmd "redraw"
+  end)
+  vim.api.nvim_exec_autocmds("CursorMoved", { buffer = nrs.file_list_bufnr })
+end
+
+--- @param nrs MultiFileDiffViewNrs
+--- @param bufnr integer
+local register_file_list_navigation_keymaps = function(nrs, bufnr)
+  if vim.list_contains(nrs.navigation_bufnrs, bufnr) then
+    return
+  end
+
+  vim.keymap.set("n", file_list_down_plug, function()
+    local winnr = vim.api.nvim_get_current_win()
+    if winnr == nrs.new_winnr or winnr == nrs.old_winnr then
+      move_file_list_cursor(nrs, 1)
+    end
+  end, { buffer = bufnr })
+
+  vim.keymap.set("n", file_list_up_plug, function()
+    local winnr = vim.api.nvim_get_current_win()
+    if winnr == nrs.new_winnr or winnr == nrs.old_winnr then
+      move_file_list_cursor(nrs, -1)
+    end
+  end, { buffer = bufnr })
+
+  table.insert(nrs.navigation_bufnrs, bufnr)
+end
+
+--- @param nrs MultiFileDiffViewNrs
+local clear_file_list_navigation_keymaps = function(nrs)
+  for _, bufnr in ipairs(nrs.navigation_bufnrs) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      pcall(vim.api.nvim_buf_del_keymap, bufnr, "n", file_list_down_plug)
+      pcall(vim.api.nvim_buf_del_keymap, bufnr, "n", file_list_up_plug)
+    end
+  end
+  nrs.navigation_bufnrs = {}
+end
 
 --- @class ExistingMultiFileDiffView
 --- @field diff_tabnr integer
@@ -448,8 +513,10 @@ local update_diff_view = cb_async(function(nrs, opts)
 
   if use_real_filename_bufnr then
     vim.api.nvim_win_set_buf(nrs.new_winnr, filename_bufnr)
+    register_file_list_navigation_keymaps(nrs, filename_bufnr)
   else
     vim.api.nvim_win_set_buf(nrs.new_winnr, nrs.new_bufnr)
+    register_file_list_navigation_keymaps(nrs, nrs.new_bufnr)
     assert(new_lines ~= nil)
     vim.api.nvim_buf_set_lines(nrs.new_bufnr, 0, -1, false, new_lines)
   end
@@ -493,6 +560,7 @@ local init_multi_file_diff_view_nrs = function()
     file_list_bufnr = file_list_bufnr,
     diff_tabnr = diff_tabnr,
     edit_tabnr = edit_tabnr,
+    navigation_bufnrs = {},
   }
 end
 
@@ -534,6 +602,9 @@ end
 --- @param nrs MultiFileDiffViewNrs
 --- @param opts OpenMultiFileDiffViewParams
 local register_multi_file_diff_view_callbacks = function(nrs, opts)
+  register_file_list_navigation_keymaps(nrs, nrs.old_bufnr)
+  register_file_list_navigation_keymaps(nrs, nrs.new_bufnr)
+
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = vim.api.nvim_create_augroup("GitDiffsMultiFileDiffViewCursorMove", { clear = true }),
     buf = nrs.file_list_bufnr,
@@ -559,6 +630,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
     { nrs.new_winnr, nrs.old_winnr, nrs.file_list_winnr },
     function()
       iter = iter + 1
+      clear_file_list_navigation_keymaps(nrs)
     end
   )
 
