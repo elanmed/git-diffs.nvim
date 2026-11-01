@@ -440,7 +440,10 @@ M.open_multi_file_diff_view = cb_async(function(opts)
   })
 
   vim.api.nvim_create_autocmd("WinClosed", {
-    group = vim.api.nvim_create_augroup("GitDiffViewFileListWinClosed", { clear = true }),
+    group = vim.api.nvim_create_augroup(
+      "GitDiffsMultiFileDiffViewFileListWinClosed",
+      { clear = true }
+    ),
     pattern = {
       tostring(state_multi_file.new_winnr),
       tostring(state_multi_file.old_winnr),
@@ -673,6 +676,38 @@ M.open_single_file_diff_view = cb_async(function(opts)
       old_bufnr = state_single_file.old_bufnr,
       worktree_bufnr = state_single_file.worktree_bufnr,
     },
+  })
+
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = vim.api.nvim_create_augroup("GitDiffsSingleFileDiffViewWinClosed", { clear = true }),
+    pattern = {
+      tostring(state_single_file.worktree_winnr),
+      tostring(state_single_file.old_winnr),
+    },
+    callback = function()
+      local diff_tabnr = state_single_file.diff_tabnr
+      if
+        diff_tabnr ~= nil
+        and vim.api.nvim_tabpage_is_valid(diff_tabnr)
+        and #vim.api.nvim_list_tabpages() == 1
+      then
+        state_single_file = vim.deepcopy(initial_state_single_file)
+        vim.defer_fn(function()
+          if vim.api.nvim_tabpage_is_valid(diff_tabnr) and #vim.api.nvim_list_tabpages() == 1 then
+            vim.cmd.quitall()
+          end
+        end, 0)
+        return
+      end
+
+      if vim.api.nvim_win_is_valid(state_single_file.worktree_winnr) then
+        vim.api.nvim_win_close(state_single_file.worktree_winnr, false)
+      end
+      if vim.api.nvim_win_is_valid(state_single_file.old_winnr) then
+        vim.api.nvim_win_close(state_single_file.old_winnr, false)
+      end
+      state_single_file = vim.deepcopy(initial_state_single_file)
+    end,
   })
 end)
 
