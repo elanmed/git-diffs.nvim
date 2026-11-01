@@ -69,7 +69,9 @@ end
 local function get_file_list_lines()
   for _, win in ipairs(child.api.nvim_tabpage_list_wins(0)) do
     local bufnr = child.api.nvim_win_get_buf(win)
-    if child.api.nvim_buf_get_option(bufnr, "filetype") == "git-diffs-view-file-list" then
+    if
+      child.api.nvim_buf_get_option(bufnr, "filetype") == "git-diffs-multi-file-diff-view-file-list"
+    then
       return child.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     end
   end
@@ -126,7 +128,7 @@ local function get_diff_view_windows(filename)
     local bufname = child.api.nvim_buf_get_name(bufnr)
     local basename = child.fn.fnamemodify(bufname, ":t")
 
-    if filetype == "git-diffs-view-file-list" then
+    if filetype == "git-diffs-multi-file-diff-view-file-list" then
       files_win = win
     elseif buftype == "" and basename == filename then
       new_win = win
@@ -321,7 +323,7 @@ T["diff view"]["loads a single diff from the current buffer path"] = function()
   expect_state(function()
     return child.lua_func(function()
       for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-        if vim.wo[win].winbar == "HEAD" then
+        if vim.wo[win].winbar == "index" then
           return vim.deep_equal(
             vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, -1, false),
             {
@@ -333,6 +335,43 @@ T["diff view"]["loads a single diff from the current buffer path"] = function()
       return false
     end)
   end)
+end
+
+T["diff view"]["cleans up after an unavailable single-file snapshot and allows retry"] = function()
+  set_named_buffer("single-missing.txt", { "worktree" })
+  local worktree_bufnr = child.api.nvim_get_current_buf()
+  mock_notify()
+  mock_system_responses {
+    ["git show :single-missing.txt"] = { code = 128, stderr = "missing path" },
+  }
+
+  child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return child.lua_func(function()
+      return #notifications == 1
+    end)
+  end)
+  eq(#child.api.nvim_list_tabpages(), 1)
+  eq(#child.api.nvim_tabpage_list_wins(0), 1)
+  eq(child.api.nvim_get_current_buf(), worktree_bufnr)
+  eq(
+    child.lua_func(function()
+      return notifications[1]
+    end),
+    {
+      "[git-diffs.nvim]: could not resolve old snapshot: file=single-missing.txt location=index",
+      vim.log.levels.WARN,
+    }
+  )
+
+  mock_system_responses {
+    ["git show :single-missing.txt"] = { stdout = "old snapshot\n" },
+  }
+  child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 2
+  end)
+  eq(#child.api.nvim_list_tabpages(), 2)
 end
 
 T["diff view"]["closes the single-file view and restores the worktree cursor"] = function()
@@ -354,6 +393,72 @@ T["diff view"]["closes the single-file view and restores the worktree cursor"] =
   eq(child.api.nvim_get_current_tabpage(), edit_tab)
   eq(child.api.nvim_get_current_buf(), worktree_bufnr)
   eq(child.api.nvim_win_get_cursor(0), { 2, 1 })
+end
+
+T["diff view"]["does not replace another buffer when toggling closed"] = function()
+  set_named_buffer("single-toggle-other.txt", { "worktree", "second line" })
+  mock_system_responses {
+    ["git show :single-toggle-other.txt"] = { stdout = "old version\n" },
+  }
+  child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return child.lua_func(function()
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        if vim.wo[win].winbar == "index" then
+          return true
+        end
+      end
+      return false
+    end)
+  end)
+
+  local edit_tab = child.api.nvim_list_tabpages()[1]
+  child.api.nvim_set_current_tabpage(edit_tab)
+  child.cmd "enew"
+  set_named_buffer("unrelated.txt", { "keep this buffer" })
+  local edit_win = child.api.nvim_get_current_win()
+  local unrelated_bufnr = child.api.nvim_get_current_buf()
+  local unrelated_lines = child.api.nvim_buf_get_lines(unrelated_bufnr, 0, -1, false)
+
+  child.lua [[M.toggle_single_file_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 1
+  end)
+
+  eq(child.api.nvim_win_is_valid(edit_win), true)
+  eq(child.api.nvim_win_get_buf(edit_win), unrelated_bufnr)
+  eq(child.api.nvim_buf_get_lines(unrelated_bufnr, 0, -1, false), unrelated_lines)
+end
+
+T["diff view"]["toggles the single-file view and closes both diff windows"] = function()
+  set_named_buffer("single-toggle.txt", { "one", "two" })
+  mock_system_responses {
+    ["git show :single-toggle.txt"] = { stdout = "old version\n" },
+  }
+  local worktree_bufnr = child.api.nvim_get_current_buf()
+  child.lua_func(function()
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "GitDiffsSingleFileDiffViewOpen",
+      callback = function(event)
+        _G.single_file_diff_windows = event.data
+      end,
+    })
+  end)
+
+  child.lua("M.toggle_single_file_diff_view(...)", { { diff_type = "worktree-index" } })
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 2
+  end)
+  local diff_windows = child.lua_get "single_file_diff_windows"
+  eq(diff_windows.worktree_winnr ~= nil, true)
+  eq(diff_windows.old_winnr ~= nil, true)
+  child.lua("M.toggle_single_file_diff_view(...)", { { diff_type = "worktree-index" } })
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 1
+  end)
+  eq(child.api.nvim_win_is_valid(diff_windows.worktree_winnr), false)
+  eq(child.api.nvim_win_is_valid(diff_windows.old_winnr), false)
+  eq(child.api.nvim_get_current_buf(), worktree_bufnr)
 end
 
 T["diff view"]["notifies when scroll keymaps no longer have a diff window"] = function()
@@ -529,7 +634,7 @@ T["diff view"]["preserves HEAD and upstream or merge-base snapshot lines"]["keep
   }
   child.lua_func(function()
     vim.api.nvim_create_autocmd("User", {
-      pattern = "GitDiffViewOpen",
+      pattern = "GitDiffsMultiFileDiffViewOpen",
       once = true,
       callback = function(event)
         rawset(_G, "diff_view_data", event.data)

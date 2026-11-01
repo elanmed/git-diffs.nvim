@@ -571,12 +571,21 @@ M.open_multi_file_diff_view = cb_async(function(opts)
 end)
 
 local close_single_file_diff_view = function()
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  vim.api.nvim_set_current_buf(state_single_file.worktree_bufnr)
+  if
+    state_single_file.worktree_winnr == nil
+    or state_single_file.worktree_bufnr == nil
+    or not vim.api.nvim_win_is_valid(state_single_file.worktree_winnr)
+    or not vim.api.nvim_buf_is_valid(state_single_file.worktree_bufnr)
+  then
+    return
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(state_single_file.worktree_winnr)
   local line_count = vim.api.nvim_buf_line_count(state_single_file.worktree_bufnr)
   local clamped = math.min(cursor[1], line_count)
-  vim.api.nvim_win_set_cursor(0, { clamped, cursor[2] })
 
+  vim.api.nvim_win_set_buf(state_single_file.worktree_winnr, state_single_file.worktree_bufnr)
+  vim.api.nvim_win_set_cursor(state_single_file.worktree_winnr, { clamped, cursor[2] })
   maybe_close_winnr(state_single_file.worktree_winnr)
 end
 
@@ -625,48 +634,6 @@ M.open_single_file_diff_view = cb_async(function(opts)
     win = state_single_file.worktree_winnr,
   })
 
-  ensure_main_loop()
-  local _, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
-  local old_str = vim.async.await(resolve_file_contents {
-    file_location = old_file_location,
-    rel_filename = curr_bufname,
-    upstream_branch = opts.upstream_branch,
-  }) --[[@as string?]]
-  if old_str == nil then
-    notify(
-      vim.log.levels.WARN,
-      "could not resolve old snapshot: file=%s location=%s",
-      curr_bufname,
-      old_file_location
-    )
-    return
-  end
-  local old_lines = split_file_contents(old_str)
-
-  ensure_main_loop()
-  vim.api.nvim_buf_set_lines(state_single_file.old_bufnr, 0, -1, false, old_lines)
-
-  vim.bo[state_single_file.old_bufnr].filetype = curr_filetype
-
-  pcall(vim.api.nvim_win_set_cursor, state_single_file.old_winnr, curr_cursor)
-  vim.api.nvim_win_set_cursor(state_single_file.worktree_winnr, curr_cursor)
-  vim.api.nvim_set_current_win(state_single_file.worktree_winnr)
-
-  vim.bo[state_single_file.old_bufnr].modifiable = false
-  vim.bo[state_single_file.old_bufnr].bufhidden = "wipe"
-
-  vim.wo[state_single_file.old_winnr].winbar = old_file_location
-  vim.wo[state_single_file.worktree_winnr].winbar = "worktree"
-
-  vim.api.nvim_win_call(state_single_file.old_winnr, vim.cmd.diffthis)
-  vim.api.nvim_win_call(state_single_file.worktree_winnr, vim.cmd.diffthis)
-
-  vim.keymap.set("n", "<Plug>GitDiffsSingleFileDiffViewClose", function()
-    if should_close_winnr(state_single_file.worktree_winnr) then
-      close_single_file_diff_view()
-    end
-  end, { buffer = true })
-
   vim.api.nvim_exec_autocmds("User", {
     pattern = "GitDiffsSingleFileDiffViewOpen",
     data = {
@@ -699,6 +666,50 @@ M.open_single_file_diff_view = cb_async(function(opts)
       state_single_file = vim.deepcopy(initial_state_single_file)
     end,
   })
+
+  ensure_main_loop()
+  local _, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
+  local old_str = vim.async.await(resolve_file_contents {
+    file_location = old_file_location,
+    rel_filename = curr_bufname,
+    upstream_branch = opts.upstream_branch,
+  }) --[[@as string?]]
+  ensure_main_loop()
+  if old_str == nil then
+    notify(
+      vim.log.levels.WARN,
+      "could not resolve old snapshot: file=%s location=%s",
+      curr_bufname,
+      old_file_location
+    )
+    maybe_close_winnr(state_single_file.worktree_winnr)
+    state_single_file = vim.deepcopy(initial_state_single_file)
+    return
+  end
+  local old_lines = split_file_contents(old_str)
+
+  vim.api.nvim_buf_set_lines(state_single_file.old_bufnr, 0, -1, false, old_lines)
+
+  vim.bo[state_single_file.old_bufnr].filetype = curr_filetype
+
+  pcall(vim.api.nvim_win_set_cursor, state_single_file.old_winnr, curr_cursor)
+  vim.api.nvim_win_set_cursor(state_single_file.worktree_winnr, curr_cursor)
+  vim.api.nvim_set_current_win(state_single_file.worktree_winnr)
+
+  vim.bo[state_single_file.old_bufnr].modifiable = false
+  vim.bo[state_single_file.old_bufnr].bufhidden = "wipe"
+
+  vim.wo[state_single_file.old_winnr].winbar = old_file_location
+  vim.wo[state_single_file.worktree_winnr].winbar = "worktree"
+
+  vim.api.nvim_win_call(state_single_file.old_winnr, vim.cmd.diffthis)
+  vim.api.nvim_win_call(state_single_file.worktree_winnr, vim.cmd.diffthis)
+
+  vim.keymap.set("n", "<Plug>GitDiffsSingleFileDiffViewClose", function()
+    if should_close_winnr(state_single_file.worktree_winnr) then
+      close_single_file_diff_view()
+    end
+  end, { buffer = true })
 end)
 
 --- @param opts OpenMultiFileDiffViewParams

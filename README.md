@@ -85,6 +85,10 @@ Invoke `<Plug>GitDiffsSingleFileDiffViewClose` to close the view and return to t
 
 Toggles the multi-file diff view: opens it if not open, closes it if already open.
 
+### `require("git-diffs").toggle_single_file_diff_view(opts)`
+
+Toggles the single-file diff view: opens it if not open, closes it if already open. `opts` accepts the same worktree diff type and optional `upstream_branch` as `open_single_file_diff_view()`.
+
 ## Autocommand events
 
 ### `User GitDiffsMultiFileDiffViewOpen`
