@@ -398,14 +398,14 @@ local register_file_list_navigation_keymaps = function(nrs, bufnr)
 
   vim.keymap.set("n", file_list_down_plug, function()
     local winnr = vim.api.nvim_get_current_win()
-    if winnr == nrs.new_winnr or winnr == nrs.old_winnr then
+    if winnr == nrs.new_winnr or winnr == nrs.old_winnr or winnr == nrs.file_list_winnr then
       move_file_list_cursor(nrs, 1)
     end
   end, { buffer = bufnr })
 
   vim.keymap.set("n", file_list_up_plug, function()
     local winnr = vim.api.nvim_get_current_win()
-    if winnr == nrs.new_winnr or winnr == nrs.old_winnr then
+    if winnr == nrs.new_winnr or winnr == nrs.old_winnr or winnr == nrs.file_list_winnr then
       move_file_list_cursor(nrs, -1)
     end
   end, { buffer = bufnr })
@@ -604,6 +604,7 @@ end
 local register_multi_file_diff_view_callbacks = function(nrs, opts)
   register_file_list_navigation_keymaps(nrs, nrs.old_bufnr)
   register_file_list_navigation_keymaps(nrs, nrs.new_bufnr)
+  register_file_list_navigation_keymaps(nrs, nrs.file_list_bufnr)
 
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = vim.api.nvim_create_augroup("GitDiffsMultiCursor", { clear = true }),

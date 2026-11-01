@@ -358,6 +358,13 @@ T["diff view"]["moves the file list from either diff window"] = function()
   eq(child.api.nvim_win_get_cursor(files_win)[1], 1)
 end
 
+T["diff view"]["moves the file list from its own buffer"] = function()
+  local _, _, files_win = open_two_file_diff_view()
+  child.api.nvim_set_current_win(files_win)
+  child.type_keys "<Plug>GitDiffsMultiListDown"
+  eq(child.api.nvim_win_get_cursor(files_win)[1], 2)
+end
+
 T["diff view"]["wraps down from the last file to the first"] = function()
   local new_win, _, files_win = open_two_file_diff_view()
   child.api.nvim_set_current_win(files_win)
