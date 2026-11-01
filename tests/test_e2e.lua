@@ -154,6 +154,30 @@ local function setup_diff_view_test(filename, worktree_lines, index_content)
   mock_system_responses { ["git diff --name-only"] = { stdout = filename .. "\n" } }
 end
 
+--- @param filename string
+--- @param worktree_lines string[]
+--- @param snapshot_response MockSystemResult
+local function setup_single_file_diff_test(filename, worktree_lines, snapshot_response)
+  set_named_buffer(filename, worktree_lines)
+  mock_system_responses { ["git show :" .. filename] = snapshot_response }
+end
+
+local function open_single_file_diff_view()
+  child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2
+      and #child.api.nvim_tabpage_list_wins(0) == 2
+      and child.lua_func(function()
+        for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+          if vim.wo[win].winbar == "index" then
+            return true
+          end
+        end
+        return false
+      end)
+  end)
+end
+
 local function setup_diff_view_scroll_test()
   local index_lines = {}
   local worktree_lines = {}
@@ -313,13 +337,8 @@ T["diff view"]["shows an empty file list when there are no changed files"] = fun
 end
 
 T["diff view"]["loads a single diff from the current buffer path"] = function()
-  set_named_buffer("single.txt", { "worktree" })
-  mock_system_responses { ["git show :single.txt"] = { stdout = "index snapshot\n" } }
-
-  child.lua("M.open_single_file_diff_view(...)", { { diff_type = "worktree-index" } })
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 2
-  end)
+  setup_single_file_diff_test("single.txt", { "worktree" }, { stdout = "index snapshot\n" })
+  open_single_file_diff_view()
   expect_state(function()
     return child.lua_func(function()
       for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
@@ -338,12 +357,13 @@ T["diff view"]["loads a single diff from the current buffer path"] = function()
 end
 
 T["diff view"]["cleans up after an unavailable single-file snapshot and allows retry"] = function()
-  set_named_buffer("single-missing.txt", { "worktree" })
+  setup_single_file_diff_test(
+    "single-missing.txt",
+    { "worktree" },
+    { code = 128, stderr = "missing path" }
+  )
   local worktree_bufnr = child.api.nvim_get_current_buf()
   mock_notify()
-  mock_system_responses {
-    ["git show :single-missing.txt"] = { code = 128, stderr = "missing path" },
-  }
 
   child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
@@ -367,24 +387,17 @@ T["diff view"]["cleans up after an unavailable single-file snapshot and allows r
   mock_system_responses {
     ["git show :single-missing.txt"] = { stdout = "old snapshot\n" },
   }
-  child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 2
-  end)
+  open_single_file_diff_view()
   eq(#child.api.nvim_list_tabpages(), 2)
 end
 
 T["diff view"]["closes the single-file view and restores the worktree cursor"] = function()
-  set_named_buffer("single.txt", { "one", "two", "three" })
+  setup_single_file_diff_test("single.txt", { "one", "two", "three" }, { stdout = "old version\n" })
   child.api.nvim_win_set_cursor(0, { 2, 1 })
-  mock_system_responses { ["git show :single.txt"] = { stdout = "old version\n" } }
   local worktree_bufnr = child.api.nvim_get_current_buf()
   local edit_tab = child.api.nvim_get_current_tabpage()
 
-  child.lua("M.open_single_file_diff_view(...)", { { diff_type = "worktree-index" } })
-  expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 2
-  end)
+  open_single_file_diff_view()
   child.type_keys "<Plug>GitDiffsSingleFileDiffViewClose"
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 1
@@ -396,21 +409,12 @@ T["diff view"]["closes the single-file view and restores the worktree cursor"] =
 end
 
 T["diff view"]["does not replace another buffer when toggling closed"] = function()
-  set_named_buffer("single-toggle-other.txt", { "worktree", "second line" })
-  mock_system_responses {
-    ["git show :single-toggle-other.txt"] = { stdout = "old version\n" },
-  }
-  child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
-  expect_state(function()
-    return child.lua_func(function()
-      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-        if vim.wo[win].winbar == "index" then
-          return true
-        end
-      end
-      return false
-    end)
-  end)
+  setup_single_file_diff_test(
+    "single-toggle-other.txt",
+    { "worktree", "second line" },
+    { stdout = "old version\n" }
+  )
+  open_single_file_diff_view()
 
   local edit_tab = child.api.nvim_list_tabpages()[1]
   child.api.nvim_set_current_tabpage(edit_tab)
