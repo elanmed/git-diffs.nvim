@@ -551,34 +551,29 @@ M.open_diff_view = cb_async(function(opts)
   })
 end)
 
---- @class OpenSingleDiffViewParams
+--- @class OpenSingleFileDiffViewParams
 --- @field diff_type WorktreeDiffType
 --- @field upstream_branch? string
 
-M.open_single_diff_view = cb_async(function(opts)
-  if vim.t.diff_view then
-    local worktree_bufnr = vim.t.worktree_bufnr
-    local cursor = vim.api.nvim_win_get_cursor(0)
-    vim.cmd.tabclose()
-    vim.api.nvim_set_current_buf(worktree_bufnr)
-    local line_count = vim.api.nvim_buf_line_count(worktree_bufnr)
-    local clamped = math.min(cursor[1], line_count)
-    vim.api.nvim_win_set_cursor(0, { clamped, cursor[2] })
+M.open_single_file_diff_view = cb_async(function(opts)
+  local worktree_bufnr = vim.api.nvim_get_current_buf()
+  local worktree_bufname = vim.api.nvim_buf_get_name(worktree_bufnr)
+  if vim.bo.buftype ~= "" then
+    notify(vim.log.levels.WARN, "aborting: current buffer buftype is %s", vim.bo.buftype)
     return
   end
-
-  if vim.bo.buftype ~= "" then
-    return vim.notify("Aborting, buftype is not normal", vim.log.levels.WARN)
-  end
-
-  local worktree_bufnr = vim.api.nvim_get_current_buf()
 
   local curr_cursor = vim.api.nvim_win_get_cursor(0)
   local cwd = vim.uv.cwd()
   assert(cwd ~= nil)
-  local curr_bufname = vim.fs.relpath(cwd, vim.api.nvim_buf_get_name(worktree_bufnr))
+  local curr_bufname = vim.fs.relpath(cwd, worktree_bufname)
   if curr_bufname == nil then
-    return vim.notify("relpath is nil", vim.log.levels.WARN)
+    notify(
+      vim.log.levels.WARN,
+      "aborting: could not resolve relative path for %s",
+      worktree_bufname
+    )
+    return
   end
 
   local curr_filetype = vim.bo.filetype
@@ -587,7 +582,6 @@ M.open_single_diff_view = cb_async(function(opts)
   vim.api.nvim_win_set_buf(tab_worktree_winnr, worktree_bufnr)
 
   vim.t.diff_view = true
-  vim.t.worktree_bufnr = worktree_bufnr
 
   local old_bufnr = vim.api.nvim_create_buf(false, true)
   local old_winnr = vim.api.nvim_open_win(old_bufnr, true, {
@@ -599,14 +593,21 @@ M.open_single_diff_view = cb_async(function(opts)
   local _, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
   local old_str = vim.async.await(resolve_file_contents {
     file_location = old_file_location,
-    rel_filename = opts.rel_filename,
+    rel_filename = curr_bufname,
     upstream_branch = opts.upstream_branch,
   }) --[[@as string?]]
   if old_str == nil then
+    notify(
+      vim.log.levels.WARN,
+      "could not resolve old snapshot: file=%s location=%s",
+      curr_bufname,
+      old_file_location
+    )
     return
   end
   local old_lines = split_file_contents(old_str)
 
+  ensure_main_loop()
   vim.api.nvim_buf_set_lines(old_bufnr, 0, -1, false, old_lines)
 
   vim.bo[old_bufnr].filetype = curr_filetype
@@ -623,6 +624,15 @@ M.open_single_diff_view = cb_async(function(opts)
 
   vim.api.nvim_win_call(old_winnr, vim.cmd.diffthis)
   vim.api.nvim_win_call(tab_worktree_winnr, vim.cmd.diffthis)
+
+  vim.keymap.set("n", "<Plug>GitDiffsSingleFileDiffViewClose", function()
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    vim.cmd.tabclose()
+    vim.api.nvim_set_current_buf(worktree_bufnr)
+    local line_count = vim.api.nvim_buf_line_count(worktree_bufnr)
+    local clamped = math.min(cursor[1], line_count)
+    vim.api.nvim_win_set_cursor(0, { clamped, cursor[2] })
+  end, { buffer = true })
 end)
 
 --- @param opts OpenDiffViewParams
