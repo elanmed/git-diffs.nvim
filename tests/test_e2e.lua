@@ -491,8 +491,14 @@ T["diff view"]["cleans up after an unavailable single-file snapshot and allows r
     end),
     {
       { "[git-diffs.nvim]: command failed: git show :single-missing.txt", vim.log.levels.WARN },
-      { "[git-diffs.nvim]: could not resolve file: file=single-missing.txt location=index", vim.log.levels.WARN },
-      { "[git-diffs.nvim]: could not resolve old snapshot: file=single-missing.txt location=index", vim.log.levels.WARN },
+      {
+        "[git-diffs.nvim]: could not resolve file: file=single-missing.txt location=index",
+        vim.log.levels.WARN,
+      },
+      {
+        "[git-diffs.nvim]: could not resolve old snapshot: file=single-missing.txt location=index",
+        vim.log.levels.WARN,
+      },
     }
   )
 
