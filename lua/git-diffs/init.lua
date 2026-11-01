@@ -965,12 +965,15 @@ local load_single_file_diff_view = function(nrs, context, opts)
     return
   end
 
+  vim.bo[nrs.old_bufnr].filetype = context.filetype
+
   local old_lines = split_file_contents(old_str)
   vim.api.nvim_buf_set_lines(nrs.old_bufnr, 0, -1, false, old_lines)
-  vim.bo[nrs.old_bufnr].filetype = context.filetype
+
   set_cursor(nrs.old_winnr, context.cursor)
   set_cursor(nrs.worktree_winnr, context.cursor)
   vim.api.nvim_set_current_win(nrs.worktree_winnr)
+
   vim.bo[nrs.old_bufnr].modifiable = false
   vim.bo[nrs.old_bufnr].bufhidden = "wipe"
   vim.wo[nrs.old_winnr].winbar = old_file_location
