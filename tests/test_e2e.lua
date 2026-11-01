@@ -489,6 +489,7 @@ T["diff view"]["closes the single-file view and restores the worktree cursor"] =
   local edit_tab = child.api.nvim_get_current_tabpage()
 
   open_single_file_diff_view()
+  child.api.nvim_win_set_cursor(0, { 3, 1 })
   child.type_keys "<Plug>GitDiffsSingleClose"
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 1
@@ -496,7 +497,7 @@ T["diff view"]["closes the single-file view and restores the worktree cursor"] =
 
   eq(child.api.nvim_get_current_tabpage(), edit_tab)
   eq(child.api.nvim_get_current_buf(), worktree_bufnr)
-  eq(child.api.nvim_win_get_cursor(0), { 2, 1 })
+  eq(child.api.nvim_win_get_cursor(0), { 3, 1 })
 end
 
 T["diff view"]["focuses the existing view without replacing another buffer"] = function()
@@ -548,6 +549,7 @@ T["diff view"]["toggles the single-file view and closes both diff windows"] = fu
   local diff_windows = child.lua_get "single_file_diff_windows"
   eq(diff_windows.worktree_winnr ~= nil, true)
   eq(diff_windows.old_winnr ~= nil, true)
+  child.api.nvim_win_set_cursor(diff_windows.worktree_winnr, { 2, 0 })
   child.lua("M.toggle_single_file_diff_view(...)", { { diff_type = "worktree-index" } })
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 1
@@ -555,6 +557,7 @@ T["diff view"]["toggles the single-file view and closes both diff windows"] = fu
   eq(child.api.nvim_win_is_valid(diff_windows.worktree_winnr), false)
   eq(child.api.nvim_win_is_valid(diff_windows.old_winnr), false)
   eq(child.api.nvim_get_current_buf(), worktree_bufnr)
+  eq(child.api.nvim_win_get_cursor(0), { 2, 0 })
 end
 
 T["diff view"]["notifies when scroll keymaps no longer have a diff window"] = function()

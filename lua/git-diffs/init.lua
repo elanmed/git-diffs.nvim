@@ -367,9 +367,12 @@ end
 --- @field diff_type WorktreeDiffType
 --- @field upstream_branch? string
 
---- @class SingleFileDiffViewNrs
+--- @class SingleFileDiffViewCloseParams
 --- @field worktree_winnr integer
 --- @field worktree_bufnr integer
+--- @field edit_winnr integer
+
+--- @class SingleFileDiffViewNrs: SingleFileDiffViewCloseParams
 --- @field old_winnr integer
 --- @field old_bufnr integer
 --- @field diff_tabnr integer
@@ -533,9 +536,8 @@ end
 --- @field diff_tabnr integer
 --- @field file_list_winnr integer
 
---- @class ExistingSingleFileDiffView
+--- @class ExistingSingleFileDiffView: SingleFileDiffViewCloseParams
 --- @field diff_tabnr integer
---- @field worktree_winnr integer
 
 --- @return ExistingMultiFileDiffView?
 local find_multi_file_diff_view = function()
@@ -557,7 +559,15 @@ local find_single_file_diff_view = function()
       local ok, is_single_file_diff_view =
         pcall(vim.api.nvim_win_get_var, winnr, "git_diffs_single_file_view")
       if ok and is_single_file_diff_view then
-        return { diff_tabnr = tabnr, worktree_winnr = winnr }
+        local worktree_bufnr =
+          vim.api.nvim_win_get_var(winnr, "git_diffs_single_file_worktree_bufnr")
+        local edit_winnr = vim.api.nvim_win_get_var(winnr, "git_diffs_single_file_edit_winnr")
+        return {
+          diff_tabnr = tabnr,
+          worktree_winnr = winnr,
+          worktree_bufnr = worktree_bufnr,
+          edit_winnr = edit_winnr,
+        }
       end
     end
   end
@@ -780,18 +790,26 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
   emit_multi_buffer_event(nrs, nrs.new_bufnr)
 end
 
---- @param nrs SingleFileDiffViewNrs
-local close_single_file_diff_view = function(nrs)
+--- @param close_params SingleFileDiffViewCloseParams
+local close_single_file_diff_view = function(close_params)
   if
-    not vim.api.nvim_win_is_valid(nrs.worktree_winnr)
-    or not vim.api.nvim_buf_is_valid(nrs.worktree_bufnr)
+    not vim.api.nvim_win_is_valid(close_params.worktree_winnr)
+    or not vim.api.nvim_buf_is_valid(close_params.worktree_bufnr)
   then
     return
   end
-  local cursor = vim.api.nvim_win_get_cursor(nrs.worktree_winnr)
-  vim.api.nvim_win_set_buf(nrs.worktree_winnr, nrs.worktree_bufnr)
-  set_cursor(nrs.worktree_winnr, cursor)
-  maybe_close_winnr(nrs.worktree_winnr)
+
+  local cursor = vim.api.nvim_win_get_cursor(close_params.worktree_winnr)
+  vim.api.nvim_win_set_buf(close_params.worktree_winnr, close_params.worktree_bufnr)
+
+  if
+    vim.api.nvim_win_is_valid(close_params.edit_winnr)
+    and vim.api.nvim_win_get_buf(close_params.edit_winnr) == close_params.worktree_bufnr
+  then
+    set_cursor(close_params.edit_winnr, cursor)
+  end
+
+  maybe_close_winnr(close_params.worktree_winnr)
 end
 
 --- @return SingleFileDiffViewNrs? nrs
@@ -819,6 +837,7 @@ local init_single_file_diff_view_nrs = function()
 
   local cursor = vim.api.nvim_win_get_cursor(0)
   local filetype = vim.bo.filetype
+  local edit_winnr = vim.api.nvim_get_current_win()
   local edit_tabnr = vim.api.nvim_get_current_tabpage()
 
   vim.cmd.tabnew()
@@ -827,6 +846,8 @@ local init_single_file_diff_view_nrs = function()
   local worktree_winnr = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(worktree_winnr, worktree_bufnr)
   vim.api.nvim_win_set_var(worktree_winnr, "git_diffs_single_file_view", true)
+  vim.api.nvim_win_set_var(worktree_winnr, "git_diffs_single_file_worktree_bufnr", worktree_bufnr)
+  vim.api.nvim_win_set_var(worktree_winnr, "git_diffs_single_file_edit_winnr", edit_winnr)
   vim.wo[worktree_winnr].winbar = "worktree"
 
   local old_bufnr = vim.api.nvim_create_buf(false, true)
@@ -843,6 +864,7 @@ local init_single_file_diff_view_nrs = function()
     old_winnr = old_winnr,
     diff_tabnr = diff_tabnr,
     edit_tabnr = edit_tabnr,
+    edit_winnr = edit_winnr,
   }
 
   --- @type SingleFileDiffViewContext
@@ -911,7 +933,11 @@ local register_single_file_diff_view_callbacks = function(nrs)
   )
 
   vim.keymap.set("n", "<Plug>GitDiffsSingleClose", function()
-    close_single_file_diff_view(nrs)
+    close_single_file_diff_view {
+      worktree_winnr = nrs.worktree_winnr,
+      worktree_bufnr = nrs.worktree_bufnr,
+      edit_winnr = nrs.edit_winnr,
+    }
   end, { buffer = nrs.worktree_bufnr })
 end
 
@@ -978,7 +1004,11 @@ M.toggle_single_file_diff_view = function(opts)
     return
   end
 
-  maybe_close_winnr(existing.worktree_winnr)
+  close_single_file_diff_view {
+    worktree_winnr = existing.worktree_winnr,
+    worktree_bufnr = existing.worktree_bufnr,
+    edit_winnr = existing.edit_winnr,
+  }
 end
 
 return M
