@@ -448,6 +448,7 @@ end
 local find_single_file_diff_view = function()
   for _, tabnr in ipairs(vim.api.nvim_list_tabpages()) do
     for _, winnr in ipairs(vim.api.nvim_tabpage_list_wins(tabnr)) do
+      -- TODO: find a better way to identify this
       if vim.wo[winnr].winbar == "worktree" then
         return { diff_tabnr = tabnr, worktree_winnr = winnr }
       end
