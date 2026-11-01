@@ -55,6 +55,14 @@ local maybe_close_tabnr = function(tabnr)
   return false
 end
 
+--- @param winnr integer
+--- @param cursor integer[]
+local set_cursor = function(winnr, cursor)
+  local bufnr = vim.api.nvim_win_get_buf(winnr)
+  local line = math.min(cursor[1], vim.api.nvim_buf_line_count(bufnr))
+  pcall(vim.api.nvim_win_set_cursor, winnr, { line, cursor[2] })
+end
+
 --- @param group_name string
 --- @param diff_tabnr integer
 --- @param winnrs integer[]
@@ -159,6 +167,18 @@ end
 --- @alias FileLocation "worktree" | "index" | "head" | "upstream" | "mergebase"
 --- @alias WorktreeDiffType "worktree-index" | "worktree-head" | "worktree-upstream" | "worktree-mergebase"
 --- @alias DiffType WorktreeDiffType | "index-head" | "index-upstream" | "index-mergebase" | "head-upstream" | "head-mergebase"
+
+local worktree_diff_types = {
+  "worktree-index",
+  "worktree-head",
+  "worktree-upstream",
+  "worktree-mergebase",
+}
+
+--- @param diff_type DiffType
+local is_worktree_diff_type = function(diff_type)
+  return vim.list_contains(worktree_diff_types, diff_type)
+end
 
 --- @type fun(cmd: string[], opts: vim.SystemOpts?): vim.SystemCompleted
 local system_async = vim.async.wrap(3, vim.system)
@@ -354,6 +374,8 @@ end
 --- @field old_bufnr integer
 --- @field diff_tabnr integer
 --- @field edit_tabnr integer
+
+--- @class SingleFileDiffViewContext
 --- @field rel_filename string
 --- @field cursor integer[]
 --- @field filetype string
@@ -444,6 +466,16 @@ local register_multi_buffer_keymaps = function(opts)
       return
     end
 
+    --- @type integer[]?
+    local cursor
+    if
+      winnr == nrs.new_winnr
+      and is_worktree_diff_type(diff_type)
+      and vim.bo[bufnr].buftype == ""
+    then
+      cursor = vim.api.nvim_win_get_cursor(winnr)
+    end
+
     local rel_filename = vim.api.nvim_win_call(nrs.file_list_winnr, vim.api.nvim_get_current_line)
     if rel_filename == nil or rel_filename == "" then
       notify(vim.log.levels.WARN, "No file is selected")
@@ -458,6 +490,9 @@ local register_multi_buffer_keymaps = function(opts)
     local filename_bufnr = vim.fn.bufnr(rel_filename, 1)
     vim.api.nvim_set_current_tabpage(nrs.edit_tabnr)
     vim.api.nvim_win_set_buf(0, filename_bufnr)
+    if cursor ~= nil then
+      set_cursor(0, cursor)
+    end
   end, { desc = "Switch to selected file buffer", buffer = bufnr })
 
   vim.keymap.set(
@@ -537,12 +572,7 @@ local update_diff_view = cb_async(function(nrs, opts)
 
   local new_file_location, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
   local filename_bufnr = vim.fn.bufnr(opts.rel_filename, 1)
-  local use_real_filename_bufnr = vim.list_contains({
-    "worktree-index",
-    "worktree-head",
-    "worktree-upstream",
-    "worktree-mergebase",
-  }, opts.diff_type)
+  local use_real_filename_bufnr = is_worktree_diff_type(opts.diff_type)
 
   local new_lines = nil
   if not use_real_filename_bufnr then
@@ -759,14 +789,13 @@ local close_single_file_diff_view = function(nrs)
     return
   end
   local cursor = vim.api.nvim_win_get_cursor(nrs.worktree_winnr)
-  local line_count = vim.api.nvim_buf_line_count(nrs.worktree_bufnr)
-  local clamped = math.min(cursor[1], line_count)
   vim.api.nvim_win_set_buf(nrs.worktree_winnr, nrs.worktree_bufnr)
-  vim.api.nvim_win_set_cursor(nrs.worktree_winnr, { clamped, cursor[2] })
+  set_cursor(nrs.worktree_winnr, cursor)
   maybe_close_winnr(nrs.worktree_winnr)
 end
 
---- @return SingleFileDiffViewNrs?
+--- @return SingleFileDiffViewNrs? nrs
+--- @return SingleFileDiffViewContext? context
 local init_single_file_diff_view_nrs = function()
   if vim.bo.buftype ~= "" then
     notify(vim.log.levels.WARN, "aborting: current buffer buftype is %s", vim.bo.buftype)
@@ -814,20 +843,26 @@ local init_single_file_diff_view_nrs = function()
     old_winnr = old_winnr,
     diff_tabnr = diff_tabnr,
     edit_tabnr = edit_tabnr,
+  }
+
+  --- @type SingleFileDiffViewContext
+  local context = {
     rel_filename = rel_filename,
     cursor = cursor,
     filetype = filetype,
   }
-  return nrs
+
+  return nrs, context
 end
 
 --- @param nrs SingleFileDiffViewNrs
+--- @param context SingleFileDiffViewContext
 --- @param opts OpenSingleFileDiffViewParams
-local load_single_file_diff_view = function(nrs, opts)
+local load_single_file_diff_view = function(nrs, context, opts)
   local _, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
   local old_str = vim.async.await(resolve_file_contents {
     file_location = old_file_location,
-    rel_filename = nrs.rel_filename,
+    rel_filename = context.rel_filename,
     upstream_branch = opts.upstream_branch,
   }) --[[@as string?]]
   ensure_main_loop()
@@ -835,7 +870,7 @@ local load_single_file_diff_view = function(nrs, opts)
     notify(
       vim.log.levels.WARN,
       "could not resolve old snapshot: file=%s location=%s",
-      nrs.rel_filename,
+      context.rel_filename,
       old_file_location
     )
     maybe_close_winnr(nrs.worktree_winnr)
@@ -844,9 +879,9 @@ local load_single_file_diff_view = function(nrs, opts)
 
   local old_lines = split_file_contents(old_str)
   vim.api.nvim_buf_set_lines(nrs.old_bufnr, 0, -1, false, old_lines)
-  vim.bo[nrs.old_bufnr].filetype = nrs.filetype
-  pcall(vim.api.nvim_win_set_cursor, nrs.old_winnr, nrs.cursor)
-  vim.api.nvim_win_set_cursor(nrs.worktree_winnr, nrs.cursor)
+  vim.bo[nrs.old_bufnr].filetype = context.filetype
+  set_cursor(nrs.old_winnr, context.cursor)
+  set_cursor(nrs.worktree_winnr, context.cursor)
   vim.api.nvim_set_current_win(nrs.worktree_winnr)
   vim.bo[nrs.old_bufnr].modifiable = false
   vim.bo[nrs.old_bufnr].bufhidden = "wipe"
@@ -916,12 +951,12 @@ M.open_single_file_diff_view = cb_async(function(opts)
     notify(vim.log.levels.INFO, "Single-file diff view is already open")
     return
   end
-  local nrs = init_single_file_diff_view_nrs()
-  if nrs == nil then
+  local nrs, context = init_single_file_diff_view_nrs()
+  if nrs == nil or context == nil then
     return
   end
   register_single_file_diff_view_callbacks(nrs)
-  load_single_file_diff_view(nrs, opts)
+  load_single_file_diff_view(nrs, context, opts)
 end)
 
 --- @param opts OpenSingleFileDiffViewParams

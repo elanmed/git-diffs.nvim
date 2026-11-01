@@ -624,10 +624,12 @@ T["diff view"]["switches to the selected file buffer in the original tab"] = fun
     return new_win ~= nil
   end)
   child.api.nvim_set_current_win(new_win)
+  child.api.nvim_win_set_cursor(new_win, { 2, 1 })
   child.type_keys "<Plug>GitDiffsMultiSwitchBuffer"
 
   eq(child.api.nvim_get_current_tabpage(), edit_tab)
   eq(child.api.nvim_get_current_buf(), b_bufnr)
+  eq(child.api.nvim_win_get_cursor(0), { 2, 1 })
   eq(child.api.nvim_buf_get_lines(b_bufnr, 0, -1, false), { "b1", "b2" })
 end
 
