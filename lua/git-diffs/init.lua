@@ -934,7 +934,13 @@ end)
 --- @param opts OpenMultiFileDiffViewParams
 M.toggle_multi_file_diff_view = function(opts)
   local existing = find_multi_file_diff_view()
+
   if existing == nil then
+    M.open_multi_file_diff_view(opts)
+    return
+  end
+
+  if existing.diff_tabnr ~= vim.api.nvim_get_current_tabpage() then
     M.open_multi_file_diff_view(opts)
     return
   end
@@ -963,6 +969,11 @@ end)
 M.toggle_single_file_diff_view = function(opts)
   local existing = find_single_file_diff_view()
   if existing == nil then
+    M.open_single_file_diff_view(opts)
+    return
+  end
+
+  if existing.diff_tabnr ~= vim.api.nvim_get_current_tabpage() then
     M.open_single_file_diff_view(opts)
     return
   end

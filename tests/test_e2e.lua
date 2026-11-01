@@ -499,7 +499,7 @@ T["diff view"]["closes the single-file view and restores the worktree cursor"] =
   eq(child.api.nvim_win_get_cursor(0), { 2, 1 })
 end
 
-T["diff view"]["does not replace another buffer when toggling closed"] = function()
+T["diff view"]["focuses the existing view without replacing another buffer"] = function()
   setup_single_file_diff_test(
     "single-toggle-other.txt",
     { "worktree", "second line" },
@@ -515,9 +515,10 @@ T["diff view"]["does not replace another buffer when toggling closed"] = functio
   local unrelated_bufnr = child.api.nvim_get_current_buf()
   local unrelated_lines = child.api.nvim_buf_get_lines(unrelated_bufnr, 0, -1, false)
 
+  local diff_tab = child.api.nvim_list_tabpages()[2]
   child.lua [[M.toggle_single_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
-    return #child.api.nvim_list_tabpages() == 1
+    return #child.api.nvim_list_tabpages() == 2 and child.api.nvim_get_current_tabpage() == diff_tab
   end)
 
   eq(child.api.nvim_win_is_valid(edit_win), true)
