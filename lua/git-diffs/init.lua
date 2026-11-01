@@ -193,6 +193,7 @@ local vim_system_stdout = function(cmd, opts)
   return vim.async.run(function()
     local out = system_async(cmd, opts)
     if out.code ~= 0 then
+      notify(vim.log.levels.WARN, "command failed: %s", table.concat(cmd, " "))
       return nil
     end
 
@@ -235,6 +236,12 @@ local resolve_file_contents = function(opts)
       local file_contents =
         vim.async.await(vim_system_stdout { "git", "show", ":" .. opts.rel_filename }) --[[@as string?]]
       if file_contents == nil then
+        notify(
+          vim.log.levels.WARN,
+          "could not resolve file: file=%s location=%s",
+          opts.rel_filename,
+          opts.file_location
+        )
         return nil
       end
       return normalize_file_contents(file_contents)
@@ -242,6 +249,12 @@ local resolve_file_contents = function(opts)
       local file_contents =
         vim.async.await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename }) --[[@as string?]]
       if file_contents == nil then
+        notify(
+          vim.log.levels.WARN,
+          "could not resolve file: file=%s location=%s",
+          opts.rel_filename,
+          opts.file_location
+        )
         return nil
       end
       return normalize_file_contents(file_contents)
@@ -253,6 +266,12 @@ local resolve_file_contents = function(opts)
         "origin/" .. upstream_branch .. ":" .. opts.rel_filename,
       }) --[[@as string?]]
       if file_contents == nil then
+        notify(
+          vim.log.levels.WARN,
+          "could not resolve file: file=%s location=%s",
+          opts.rel_filename,
+          opts.file_location
+        )
         return nil
       end
       return normalize_file_contents(file_contents)
@@ -267,6 +286,12 @@ local resolve_file_contents = function(opts)
       local file_contents =
         vim.async.await(vim_system_stdout { "git", "show", merge_base .. ":" .. opts.rel_filename }) --[[@as string?]]
       if file_contents == nil then
+        notify(
+          vim.log.levels.WARN,
+          "could not resolve file: file=%s location=%s",
+          opts.rel_filename,
+          opts.file_location
+        )
         return nil
       end
       return normalize_file_contents(file_contents)
@@ -1034,6 +1059,7 @@ M.open_single_file_diff_view = cb_async(function(opts)
   end
   local nrs, context = init_single_file_diff_view_nrs()
   if nrs == nil or context == nil then
+    notify(vim.log.levels.WARN, "could not initialize single-file diff view")
     return
   end
   register_single_file_diff_view_callbacks(nrs)
