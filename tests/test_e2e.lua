@@ -50,9 +50,9 @@ local function run_diff_command(diff_type, upstream_branch)
       vim.async.run(
         --- @return nil
         function()
-          result = vim.async.await(M.run_diff_cmd {
+          result = vim.async.await(M._internal.run_diff_cmd {
             diff_type = diff_type_arg,
-            upstream_branch = upstream_branch_arg,
+            upstream_branch = upstream_branch_arg or "master",
           }) --[[@as string?]]
           done = true
           return nil
@@ -275,6 +275,7 @@ local T = new_set {
           return nil
         end
         vim.system = system_mock --[[@as any]]
+        rawset(_G, "GIT_DIFFS_TEST", true)
         M = require "git-diffs"
       end)
     end,

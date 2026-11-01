@@ -209,7 +209,7 @@ end
 --- @class ResolveFileContentsParams
 --- @field file_location FileLocation
 --- @field rel_filename string
---- @field upstream_branch? string
+--- @field upstream_branch string
 --- @field file_bufnr? number
 
 --- @param file_contents string
@@ -246,7 +246,7 @@ local resolve_file_contents = function(opts)
       end
       return normalize_file_contents(file_contents)
     elseif opts.file_location == "upstream" then
-      local upstream_branch = nonnil(opts.upstream_branch, "master")
+      local upstream_branch = opts.upstream_branch
       local file_contents = vim.async.await(vim_system_stdout {
         "git",
         "show",
@@ -257,7 +257,7 @@ local resolve_file_contents = function(opts)
       end
       return normalize_file_contents(file_contents)
     elseif opts.file_location == "mergebase" then
-      local upstream_branch = nonnil(opts.upstream_branch, "master")
+      local upstream_branch = opts.upstream_branch
       local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
         return nil
@@ -285,16 +285,16 @@ end
 
 --- @class ResolveDiffCmdOpts
 --- @field diff_type DiffType
---- @field upstream_branch? string
+--- @field upstream_branch string
 
 --- @class RunDiffCmdParams
 --- @field diff_type DiffType
---- @field upstream_branch? string
+--- @field upstream_branch string
 
 --- @param opts RunDiffCmdParams
 --- @return vim.async.Task<string?>
-M.run_diff_cmd = function(opts)
-  local upstream_branch = nonnil(opts.upstream_branch, "master")
+local run_diff_cmd = function(opts)
+  local upstream_branch = opts.upstream_branch
 
   if opts.diff_type == "worktree-index" then
     return vim_system_stdout { "git", "diff", "--name-only" }
@@ -352,6 +352,10 @@ end
 --- @field diff_type DiffType
 --- @field upstream_branch? string
 
+--- @class MultiFileDiffViewOpts
+--- @field diff_type DiffType
+--- @field upstream_branch string
+
 --- @class MultiFileDiffViewNrs
 --- @field new_winnr integer
 --- @field new_bufnr integer
@@ -366,6 +370,10 @@ end
 --- @class OpenSingleFileDiffViewParams
 --- @field diff_type WorktreeDiffType
 --- @field upstream_branch? string
+
+--- @class SingleFileDiffViewOpts
+--- @field diff_type WorktreeDiffType
+--- @field upstream_branch string
 
 --- @class SingleFileDiffViewNrs
 --- @field worktree_winnr integer
@@ -383,7 +391,7 @@ end
 
 local iter = 0
 
---- @type fun(nrs: MultiFileDiffViewNrs, opts: OpenMultiFileDiffViewParams): vim.async.Task<string[]>
+--- @type fun(nrs: MultiFileDiffViewNrs, opts: MultiFileDiffViewOpts): vim.async.Task<string[]>
 local populate_multi_file_file_list
 
 --- @param nrs MultiFileDiffViewNrs
@@ -434,7 +442,7 @@ end
 --- @field nrs MultiFileDiffViewNrs
 --- @field bufnr integer
 --- @field diff_type DiffType
---- @field upstream_branch? string
+--- @field upstream_branch string
 
 --- @param opts RegisterMultiBufferKeymapsOpts
 local register_multi_buffer_keymaps = function(opts)
@@ -505,7 +513,7 @@ local register_multi_buffer_keymaps = function(opts)
         return
       end
 
-      --- @type OpenMultiFileDiffViewParams
+      --- @type MultiFileDiffViewOpts
       local opts = { diff_type = diff_type, upstream_branch = upstream_branch }
       vim.async.await(populate_multi_file_file_list(nrs, opts))
       ensure_main_loop()
@@ -576,7 +584,7 @@ end
 
 --- @class UpdateDiffViewParams
 --- @field diff_type DiffType
---- @field upstream_branch? string
+--- @field upstream_branch string
 --- @field rel_filename string
 
 --- @param nrs MultiFileDiffViewNrs
@@ -700,12 +708,12 @@ local init_multi_file_diff_view_nrs = function()
 end
 
 --- @param nrs MultiFileDiffViewNrs
---- @param opts OpenMultiFileDiffViewParams
+--- @param opts MultiFileDiffViewOpts
 --- @return vim.async.Task<string[]>
 populate_multi_file_file_list = function(nrs, opts)
   --- @return string[]
   return vim.async.run(function()
-    local file_list_str = vim.async.await(M.run_diff_cmd {
+    local file_list_str = vim.async.await(run_diff_cmd {
       diff_type = opts.diff_type,
       upstream_branch = opts.upstream_branch,
     }) --[[@as string?]]
@@ -723,7 +731,7 @@ end
 
 --- @param nrs MultiFileDiffViewNrs
 --- @param files string[]
---- @param opts OpenMultiFileDiffViewParams
+--- @param opts MultiFileDiffViewOpts
 local configure_multi_file_diff_view = function(nrs, files, opts)
   if #files > 0 then
     update_diff_view(nrs, {
@@ -735,7 +743,7 @@ local configure_multi_file_diff_view = function(nrs, files, opts)
 end
 
 --- @param nrs MultiFileDiffViewNrs
---- @param opts OpenMultiFileDiffViewParams
+--- @param opts MultiFileDiffViewOpts
 local register_multi_file_diff_view_callbacks = function(nrs, opts)
   for _, bufnr in ipairs { nrs.old_bufnr, nrs.new_bufnr, nrs.file_list_bufnr } do
     register_multi_buffer_keymaps {
@@ -890,7 +898,7 @@ end
 
 --- @param nrs SingleFileDiffViewNrs
 --- @param context SingleFileDiffViewContext
---- @param opts OpenSingleFileDiffViewParams
+--- @param opts SingleFileDiffViewOpts
 local load_single_file_diff_view = function(nrs, context, opts)
   local _, old_file_location = get_file_locations_from_diff_type(opts.diff_type)
   local old_str = vim.async.await(resolve_file_contents {
@@ -955,6 +963,10 @@ end
 --- @param opts OpenMultiFileDiffViewParams
 --- @type fun(opts: OpenMultiFileDiffViewParams): nil
 M.open_multi_file_diff_view = cb_async(function(opts)
+  local normalized_opts = {
+    diff_type = opts.diff_type,
+    upstream_branch = nonnil(opts.upstream_branch, "master"),
+  }
   local existing = find_multi_file_diff_view()
   if existing ~= nil then
     vim.api.nvim_set_current_tabpage(existing.diff_tabnr)
@@ -962,10 +974,10 @@ M.open_multi_file_diff_view = cb_async(function(opts)
     return
   end
   local nrs = init_multi_file_diff_view_nrs()
-  register_multi_file_diff_view_callbacks(nrs, opts)
-  local files = vim.async.await(populate_multi_file_file_list(nrs, opts)) --[[@as string[] ]]
+  register_multi_file_diff_view_callbacks(nrs, normalized_opts)
+  local files = vim.async.await(populate_multi_file_file_list(nrs, normalized_opts)) --[[@as string[] ]]
   ensure_main_loop()
-  configure_multi_file_diff_view(nrs, files, opts)
+  configure_multi_file_diff_view(nrs, files, normalized_opts)
 end)
 
 --- @param opts OpenMultiFileDiffViewParams
@@ -988,6 +1000,10 @@ end
 --- @param opts OpenSingleFileDiffViewParams
 --- @type fun(opts: OpenSingleFileDiffViewParams): nil
 M.open_single_file_diff_view = cb_async(function(opts)
+  local normalized_opts = {
+    diff_type = opts.diff_type,
+    upstream_branch = nonnil(opts.upstream_branch, "master"),
+  }
   local existing = find_single_file_diff_view()
   if existing ~= nil then
     vim.api.nvim_set_current_tabpage(existing.diff_tabnr)
@@ -999,7 +1015,7 @@ M.open_single_file_diff_view = cb_async(function(opts)
     return
   end
   register_single_file_diff_view_callbacks(nrs)
-  load_single_file_diff_view(nrs, context, opts)
+  load_single_file_diff_view(nrs, context, normalized_opts)
 end)
 
 --- @param opts OpenSingleFileDiffViewParams
@@ -1019,6 +1035,12 @@ M.toggle_single_file_diff_view = function(opts)
     worktree_winnr = existing.worktree_winnr,
     worktree_bufnr = existing.worktree_bufnr,
     edit_winnr = existing.edit_winnr,
+  }
+end
+
+if rawget(_G, "GIT_DIFFS_TEST") then
+  M._internal = {
+    run_diff_cmd = run_diff_cmd,
   }
 end
 
