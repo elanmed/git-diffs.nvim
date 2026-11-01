@@ -93,14 +93,14 @@ Move to the next file in the file list from either diff pane; wraps from the
 last file to the first.
 
 
-
+                                                                              
 `<PLUG>GITDIFFSMULTILISTUP`              *git-diffs-<plug>gitdiffsmultilistup*
 
 Move to the previous file in the file list from either diff pane; wraps from
 the first file to the last.
 
 
-
+                                                                              
 `<PLUG>GITDIFFSMULTIREFRESH`            *git-diffs-<plug>gitdiffsmultirefresh*
 
 Refresh the list of files with diffs.
