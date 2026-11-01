@@ -60,6 +60,31 @@ local maybe_close_tabnr = function(tabnr)
   return false
 end
 
+--- @param group_name string
+--- @param diff_tabnr integer
+--- @param winnrs integer[]
+--- @param on_close? fun(): nil
+local register_diff_view_close_callback = function(group_name, diff_tabnr, winnrs, on_close)
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = vim.api.nvim_create_augroup(group_name, { clear = true }),
+    pattern = vim.tbl_map(tostring, winnrs),
+    callback = function()
+      if on_close ~= nil then
+        on_close()
+      end
+      if vim.api.nvim_tabpage_is_valid(diff_tabnr) and #vim.api.nvim_list_tabpages() == 1 then
+        vim.cmd.quitall()
+        return
+      end
+
+      for _, winnr in ipairs(winnrs) do
+        maybe_close_winnr(winnr)
+      end
+      maybe_close_tabnr(diff_tabnr)
+    end,
+  })
+end
+
 --- @param file_contents string
 --- @return string[]
 local split_file_contents = function(file_contents)
@@ -103,6 +128,31 @@ local get_scroll_num_lines = function(winnr)
     num_lines = math.floor(vim.api.nvim_win_get_height(winnr) / 2)
   end
   return math.max(1, num_lines)
+end
+
+--- @param winnr integer
+--- @param direction "j" | "k"
+local scroll_diff_view = function(winnr, direction)
+  if not should_close_winnr(winnr) then
+    notify(vim.log.levels.WARN, "Diff view window is no longer available")
+    return
+  end
+
+  if is_smooth_scroll_enabled() then
+    smooth_scroll(winnr, direction, get_scroll_num_lines(winnr))
+    return
+  end
+
+  local command = (function()
+    if direction == "j" then
+      return [[execute "normal! \\<C-d>"]]
+    end
+    return [[execute "normal! \\<C-u>"]]
+  end)()
+  vim.api.nvim_win_call(winnr, function()
+    vim.cmd(command)
+    vim.cmd.normal { "zz", bang = true }
+  end)
 end
 
 --- @param path string
@@ -508,47 +558,20 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
     end,
   })
 
-  vim.api.nvim_create_autocmd("WinClosed", {
-    group = vim.api.nvim_create_augroup(
-      "GitDiffsMultiFileDiffViewFileListWinClosed",
-      { clear = true }
-    ),
-    pattern = { tostring(nrs.new_winnr), tostring(nrs.old_winnr), tostring(nrs.file_list_winnr) },
-    callback = function()
+  register_diff_view_close_callback(
+    "GitDiffsMultiFileDiffViewFileListWinClosed",
+    nrs.diff_tabnr,
+    { nrs.new_winnr, nrs.old_winnr, nrs.file_list_winnr },
+    function()
       iter = iter + 1
-      if
-        nrs.diff_tabnr ~= nil
-        and vim.api.nvim_tabpage_is_valid(nrs.diff_tabnr)
-        and #vim.api.nvim_list_tabpages() == 1
-      then
-        vim.cmd.quitall()
-        return
-      end
-
-      maybe_close_winnr(nrs.new_winnr)
-      maybe_close_winnr(nrs.old_winnr)
-      maybe_close_winnr(nrs.file_list_winnr)
-      maybe_close_tabnr(nrs.diff_tabnr)
-    end,
-  })
+    end
+  )
 
   vim.keymap.set(
     "n",
     "<Plug>GitDiffsMultiFileDiffViewScrollDown",
     cb_async(function()
-      local winnr = nrs.old_winnr
-      if not should_close_winnr(winnr) then
-        notify(vim.log.levels.WARN, "Diff view window is no longer available")
-        return
-      end
-      if is_smooth_scroll_enabled() then
-        smooth_scroll(winnr, "j", get_scroll_num_lines(winnr))
-      else
-        vim.api.nvim_win_call(winnr, function()
-          vim.cmd [[execute "normal! \\<C-d>"]]
-          vim.cmd.normal { "zz", bang = true }
-        end)
-      end
+      scroll_diff_view(nrs.old_winnr, "j")
     end),
     { desc = "Scroll down in the diff view", buffer = nrs.file_list_bufnr }
   )
@@ -557,19 +580,7 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
     "n",
     "<Plug>GitDiffsMultiFileDiffViewScrollUp",
     cb_async(function()
-      local winnr = nrs.old_winnr
-      if not should_close_winnr(winnr) then
-        notify(vim.log.levels.WARN, "Diff view window is no longer available")
-        return
-      end
-      if is_smooth_scroll_enabled() then
-        smooth_scroll(winnr, "k", get_scroll_num_lines(winnr))
-      else
-        vim.api.nvim_win_call(winnr, function()
-          vim.cmd [[execute "normal! \\<C-u>"]]
-          vim.cmd.normal { "zz", bang = true }
-        end)
-      end
+      scroll_diff_view(nrs.old_winnr, "k")
     end),
     { desc = "Scroll up in the diff view", buffer = nrs.file_list_bufnr }
   )
@@ -731,24 +742,11 @@ local register_single_file_diff_view_callbacks = function(nrs)
     },
   })
 
-  vim.api.nvim_create_autocmd("WinClosed", {
-    group = vim.api.nvim_create_augroup("GitDiffsSingleFileDiffViewWinClosed", { clear = true }),
-    pattern = { tostring(nrs.worktree_winnr), tostring(nrs.old_winnr) },
-    callback = function()
-      if
-        nrs.diff_tabnr ~= nil
-        and vim.api.nvim_tabpage_is_valid(nrs.diff_tabnr)
-        and #vim.api.nvim_list_tabpages() == 1
-      then
-        vim.cmd.quitall()
-        return
-      end
-
-      maybe_close_winnr(nrs.worktree_winnr)
-      maybe_close_winnr(nrs.old_winnr)
-      maybe_close_tabnr(nrs.diff_tabnr)
-    end,
-  })
+  register_diff_view_close_callback(
+    "GitDiffsSingleFileDiffViewWinClosed",
+    nrs.diff_tabnr,
+    { nrs.worktree_winnr, nrs.old_winnr }
+  )
 
   vim.keymap.set("n", "<Plug>GitDiffsSingleFileDiffViewClose", function()
     if should_close_winnr(nrs.worktree_winnr) then
@@ -763,6 +761,7 @@ M.open_multi_file_diff_view = cb_async(function(opts)
   local existing = find_multi_file_diff_view()
   if existing ~= nil then
     vim.api.nvim_set_current_tabpage(existing.diff_tabnr)
+    notify(vim.log.levels.INFO, "Multi-file diff view is already open")
     return
   end
   local nrs = init_multi_file_diff_view_nrs()
@@ -789,6 +788,7 @@ M.open_single_file_diff_view = cb_async(function(opts)
   local existing = find_single_file_diff_view()
   if existing ~= nil then
     vim.api.nvim_set_current_tabpage(existing.diff_tabnr)
+    notify(vim.log.levels.INFO, "Single-file diff view is already open")
     return
   end
   local nrs = init_single_file_diff_view_nrs()
