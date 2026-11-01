@@ -343,11 +343,6 @@ M.run_diff_cmd = function(opts)
   error("Unsupported diff type: " .. opts.diff_type)
 end
 
---- @class UpdateDiffViewParams
---- @field diff_type DiffType
---- @field upstream_branch? string
---- @field rel_filename string
-
 --- @class OpenMultiFileDiffViewParams
 --- @field diff_type DiffType
 --- @field upstream_branch? string
@@ -367,12 +362,10 @@ end
 --- @field diff_type WorktreeDiffType
 --- @field upstream_branch? string
 
---- @class SingleFileDiffViewCloseParams
+--- @class SingleFileDiffViewNrs
 --- @field worktree_winnr integer
 --- @field worktree_bufnr integer
 --- @field edit_winnr integer
-
---- @class SingleFileDiffViewNrs: SingleFileDiffViewCloseParams
 --- @field old_winnr integer
 --- @field old_bufnr integer
 --- @field diff_tabnr integer
@@ -536,8 +529,11 @@ end
 --- @field diff_tabnr integer
 --- @field file_list_winnr integer
 
---- @class ExistingSingleFileDiffView: SingleFileDiffViewCloseParams
+--- @class ExistingSingleFileDiffView
 --- @field diff_tabnr integer
+--- @field worktree_winnr integer
+--- @field worktree_bufnr integer
+--- @field edit_winnr integer
 
 --- @return ExistingMultiFileDiffView?
 local find_multi_file_diff_view = function()
@@ -572,6 +568,11 @@ local find_single_file_diff_view = function()
     end
   end
 end
+
+--- @class UpdateDiffViewParams
+--- @field diff_type DiffType
+--- @field upstream_branch? string
+--- @field rel_filename string
 
 --- @param nrs MultiFileDiffViewNrs
 --- @param opts UpdateDiffViewParams
@@ -789,6 +790,11 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
 
   emit_multi_buffer_event(nrs, nrs.new_bufnr)
 end
+
+--- @class SingleFileDiffViewCloseParams
+--- @field worktree_winnr integer
+--- @field worktree_bufnr integer
+--- @field edit_winnr integer
 
 --- @param close_params SingleFileDiffViewCloseParams
 local close_single_file_diff_view = function(close_params)
