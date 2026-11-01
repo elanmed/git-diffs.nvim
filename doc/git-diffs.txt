@@ -19,10 +19,8 @@ API .......................................................... |git-diffs-api|
 `require("git-diffs").toggle_multi_file_diff_view(opts)`  |git-diffs-require("git-diffs").toggle_multi_file_diff_view(opts)|
 `require("git-diffs").toggle_single_file_diff_view(opts)`  |git-diffs-require("git-diffs").toggle_single_file_diff_view(opts)|
 Autocommand events ............................ |git-diffs-autocommand-events|
-`User GitDiffsMultiOpen` .................. |git-diffs-user-gitdiffsmultiopen|
 `User GitDiffsSingleOpen` ................ |git-diffs-user-gitdiffssingleopen|
 `User GitDiffsMultiBuffer` .............. |git-diffs-user-gitdiffsmultibuffer|
-Filetype ................................................ |git-diffs-filetype|
 
 ==============================================================================
 `GIT-DIFFS.NVIM`                                    *git-diffs-git-diffs.nvim*
@@ -60,12 +58,12 @@ EXAMPLE CONFIG                                      *git-diffs-example-config*
         for _, bufnr in ipairs { data.old_bufnr, data.new_bufnr, data.file_list_bufnr } do
           vim.keymap.set("n", "<C-n>", "<Plug>GitDiffsMultiListDown", { buffer = bufnr })
           vim.keymap.set("n", "<C-p>", "<Plug>GitDiffsMultiListUp", { buffer = bufnr })
+          vim.keymap.set("n", "o", "<Plug>GitDiffsMultiSwitchBuffer", { buffer = bufnr })
         end
 
         vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiScrollDown", { buffer = data.file_list_bufnr })
         vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiScrollUp", { buffer = data.file_list_bufnr })
         vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiRefresh", { buffer = data.file_list_bufnr })
-        vim.keymap.set("n", "o", "<Plug>GitDiffsMultiSwitchBuffer", { buffer = data.file_list_bufnr })
       end,
     })
     
@@ -187,13 +185,6 @@ AUTOCOMMAND EVENTS                              *git-diffs-autocommand-events*
 
 
                                                                               
-`USER GITDIFFSMULTIOPEN`                    *git-diffs-user-gitdiffsmultiopen*
-
-Fired after the multi-file diff view opens. `data` contains `old_winnr`,
-`new_winnr`, `file_list_winnr`, `old_bufnr`, `new_bufnr`, `file_list_bufnr`.
-
-
-                                                                              
 `USER GITDIFFSSINGLEOPEN`                  *git-diffs-user-gitdiffssingleopen*
 
 Fired after the single-file diff view opens. `data` contains `old_winnr`,
@@ -207,14 +198,6 @@ Fired when multi-file buffers are initialized and when the new-side buffer
 changes. `data` contains all pane window and buffer IDs; `new_bufnr` is the
 actual buffer displayed in the new pane, and `rel_filename` is present when a
 file is selected.
-
-
-------------------------------------------------------------------------------
-FILETYPE                                                  *git-diffs-filetype*
-
-
-The file list buffer in the diff view uses `gitdiffslist` filetype for custom
-highlighting or keymaps.
 
 
 vim:tw=78:ts=8:ft=help:norl:

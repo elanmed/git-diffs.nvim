@@ -27,11 +27,11 @@ vim.api.nvim_create_autocmd("User", {
       vim.keymap.set("n", "<C-n>", "<Plug>GitDiffsMultiListDown", { buffer = bufnr })
       vim.keymap.set("n", "<C-p>", "<Plug>GitDiffsMultiListUp", { buffer = bufnr })
       vim.keymap.set("n", "o", "<Plug>GitDiffsMultiSwitchBuffer", { buffer = bufnr })
+      vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiRefresh", { buffer = bufnr })
     end
 
     vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiScrollDown", { buffer = data.file_list_bufnr })
     vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiScrollUp", { buffer = data.file_list_bufnr })
-    vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiRefresh", { buffer = data.file_list_bufnr })
   end,
 })
 
@@ -109,10 +109,6 @@ Toggles the single-file diff view: opens it if not open, closes it if already op
 
 ## Autocommand events
 
-### `User GitDiffsMultiOpen`
-
-Fired after the multi-file diff view opens. `data` contains `old_winnr`, `new_winnr`, `file_list_winnr`, `old_bufnr`, `new_bufnr`, `file_list_bufnr`.
-
 ### `User GitDiffsSingleOpen`
 
 Fired after the single-file diff view opens. `data` contains `old_winnr`, `worktree_winnr`, `old_bufnr`, `worktree_bufnr`.
@@ -120,7 +116,3 @@ Fired after the single-file diff view opens. `data` contains `old_winnr`, `workt
 ### `User GitDiffsMultiBuffer`
 
 Fired when multi-file buffers are initialized and when the new-side buffer changes. `data` contains all pane window and buffer IDs; `new_bufnr` is the actual buffer displayed in the new pane, and `rel_filename` is present when a file is selected.
-
-## Filetype
-
-The file list buffer in the diff view uses `gitdiffslist` filetype for custom highlighting or keymaps.

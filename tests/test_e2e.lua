@@ -68,8 +68,9 @@ end
 
 local function get_file_list_lines()
   for _, win in ipairs(child.api.nvim_tabpage_list_wins(0)) do
-    local bufnr = child.api.nvim_win_get_buf(win)
-    if child.api.nvim_buf_get_option(bufnr, "filetype") == "gitdiffslist" then
+    local ok, is_file_list_win = pcall(child.api.nvim_win_get_var, win, "git_diffs_multi_file_view")
+    if ok and is_file_list_win then
+      local bufnr = child.api.nvim_win_get_buf(win)
       return child.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     end
   end
@@ -122,11 +123,11 @@ local function get_diff_view_windows(filename)
   for _, win in ipairs(child.api.nvim_tabpage_list_wins(0)) do
     local bufnr = child.api.nvim_win_get_buf(win)
     local buftype = child.api.nvim_buf_get_option(bufnr, "buftype")
-    local filetype = child.api.nvim_buf_get_option(bufnr, "filetype")
+    local ok, is_file_list_win = pcall(child.api.nvim_win_get_var, win, "git_diffs_multi_file_view")
     local bufname = child.api.nvim_buf_get_name(bufnr)
     local basename = child.fn.fnamemodify(bufname, ":t")
 
-    if filetype == "gitdiffslist" then
+    if ok and is_file_list_win then
       files_win = win
     elseif buftype == "" and basename == filename then
       new_win = win
@@ -749,7 +750,7 @@ T["diff view"]["preserves HEAD and upstream or merge-base snapshot lines"]["keep
   }
   child.lua_func(function()
     vim.api.nvim_create_autocmd("User", {
-      pattern = "GitDiffsMultiOpen",
+      pattern = "GitDiffsMultiBuffer",
       once = true,
       callback = function(event)
         rawset(_G, "diff_view_data", event.data)
@@ -874,6 +875,8 @@ T["diff view"]["refreshes the file list"] = function()
   end)
 
   mock_system_responses { ["git diff --name-only"] = { stdout = "a.txt\nb.txt\n" } }
+  local _, old_win = get_diff_view_windows "a.txt"
+  child.api.nvim_set_current_win(old_win)
   child.type_keys "<Plug>GitDiffsMultiRefresh"
   expect_state(function()
     return vim.deep_equal(get_file_list_lines(), { "a.txt", "b.txt" })

@@ -360,6 +360,9 @@ end
 
 local iter = 0
 
+--- @type fun(nrs: MultiFileDiffViewNrs, opts: OpenMultiFileDiffViewParams): vim.async.Task<string[]>
+local populate_multi_file_file_list
+
 --- @param nrs MultiFileDiffViewNrs
 --- @param new_bufnr integer
 --- @param rel_filename? string
@@ -404,9 +407,19 @@ local move_file_list_cursor = function(nrs, direction)
   vim.api.nvim_exec_autocmds("CursorMoved", { buffer = nrs.file_list_bufnr })
 end
 
---- @param nrs MultiFileDiffViewNrs
---- @param bufnr integer
-local register_multi_buffer_keymaps = function(nrs, bufnr)
+--- @class RegisterMultiBufferKeymapsOpts
+--- @field nrs MultiFileDiffViewNrs
+--- @field bufnr integer
+--- @field diff_type DiffType
+--- @field upstream_branch? string
+
+--- @param opts RegisterMultiBufferKeymapsOpts
+local register_multi_buffer_keymaps = function(opts)
+  local nrs = opts.nrs
+  local bufnr = opts.bufnr
+  local diff_type = opts.diff_type
+  local upstream_branch = opts.upstream_branch
+
   if vim.list_contains(nrs.keymap_bufnrs, bufnr) then
     return
   end
@@ -447,6 +460,24 @@ local register_multi_buffer_keymaps = function(nrs, bufnr)
     vim.api.nvim_win_set_buf(0, filename_bufnr)
   end, { desc = "Switch to selected file buffer", buffer = bufnr })
 
+  vim.keymap.set(
+    "n",
+    "<Plug>GitDiffsMultiRefresh",
+    cb_async(function()
+      local winnr = vim.api.nvim_get_current_win()
+      if winnr ~= nrs.new_winnr and winnr ~= nrs.old_winnr and winnr ~= nrs.file_list_winnr then
+        return
+      end
+
+      --- @type OpenMultiFileDiffViewParams
+      local opts = { diff_type = diff_type, upstream_branch = upstream_branch }
+      vim.async.await(populate_multi_file_file_list(nrs, opts))
+      ensure_main_loop()
+      notify(vim.log.levels.INFO, "Refreshing file list")
+    end),
+    { desc = "Refresh file list", buffer = bufnr }
+  )
+
   table.insert(nrs.keymap_bufnrs, bufnr)
 end
 
@@ -457,6 +488,7 @@ local clear_file_list_navigation_keymaps = function(nrs)
       pcall(vim.api.nvim_buf_del_keymap, bufnr, "n", "<Plug>GitDiffsMultiListDown")
       pcall(vim.api.nvim_buf_del_keymap, bufnr, "n", "<Plug>GitDiffsMultiListUp")
       pcall(vim.api.nvim_buf_del_keymap, bufnr, "n", "<Plug>GitDiffsMultiSwitchBuffer")
+      pcall(vim.api.nvim_buf_del_keymap, bufnr, "n", "<Plug>GitDiffsMultiRefresh")
     end
   end
   nrs.keymap_bufnrs = {}
@@ -474,8 +506,9 @@ end
 local find_multi_file_diff_view = function()
   for _, tabnr in ipairs(vim.api.nvim_list_tabpages()) do
     for _, winnr in ipairs(vim.api.nvim_tabpage_list_wins(tabnr)) do
-      local bufnr = vim.api.nvim_win_get_buf(winnr)
-      if vim.bo[bufnr].filetype == "gitdiffslist" then
+      local ok, is_multi_file_diff_view =
+        pcall(vim.api.nvim_win_get_var, winnr, "git_diffs_multi_file_view")
+      if ok and is_multi_file_diff_view then
         return { diff_tabnr = tabnr, file_list_winnr = winnr }
       end
     end
@@ -554,10 +587,20 @@ local update_diff_view = cb_async(function(nrs, opts)
 
   if use_real_filename_bufnr then
     vim.api.nvim_win_set_buf(nrs.new_winnr, filename_bufnr)
-    register_multi_buffer_keymaps(nrs, filename_bufnr)
+    register_multi_buffer_keymaps {
+      nrs = nrs,
+      bufnr = filename_bufnr,
+      diff_type = opts.diff_type,
+      upstream_branch = opts.upstream_branch,
+    }
   else
     vim.api.nvim_win_set_buf(nrs.new_winnr, nrs.new_bufnr)
-    register_multi_buffer_keymaps(nrs, nrs.new_bufnr)
+    register_multi_buffer_keymaps {
+      nrs = nrs,
+      bufnr = nrs.new_bufnr,
+      diff_type = opts.diff_type,
+      upstream_branch = opts.upstream_branch,
+    }
     assert(new_lines ~= nil)
     vim.api.nvim_buf_set_lines(nrs.new_bufnr, 0, -1, false, new_lines)
   end
@@ -594,8 +637,8 @@ local init_multi_file_diff_view_nrs = function()
   vim.cmd "botright 10split"
   local file_list_winnr = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(file_list_winnr, file_list_bufnr)
+  vim.api.nvim_win_set_var(file_list_winnr, "git_diffs_multi_file_view", true)
   vim.wo[file_list_winnr].winbar = "Files"
-  vim.bo[file_list_bufnr].filetype = "gitdiffslist"
 
   return {
     new_winnr = new_winnr,
@@ -613,7 +656,7 @@ end
 --- @param nrs MultiFileDiffViewNrs
 --- @param opts OpenMultiFileDiffViewParams
 --- @return vim.async.Task<string[]>
-local populate_multi_file_file_list = function(nrs, opts)
+populate_multi_file_file_list = function(nrs, opts)
   --- @return string[]
   return vim.async.run(function()
     local file_list_str = vim.async.await(M.run_diff_cmd {
@@ -648,9 +691,14 @@ end
 --- @param nrs MultiFileDiffViewNrs
 --- @param opts OpenMultiFileDiffViewParams
 local register_multi_file_diff_view_callbacks = function(nrs, opts)
-  register_multi_buffer_keymaps(nrs, nrs.old_bufnr)
-  register_multi_buffer_keymaps(nrs, nrs.new_bufnr)
-  register_multi_buffer_keymaps(nrs, nrs.file_list_bufnr)
+  for _, bufnr in ipairs { nrs.old_bufnr, nrs.new_bufnr, nrs.file_list_bufnr } do
+    register_multi_buffer_keymaps {
+      nrs = nrs,
+      bufnr = bufnr,
+      diff_type = opts.diff_type,
+      upstream_branch = opts.upstream_branch,
+    }
+  end
 
   vim.api.nvim_create_autocmd("CursorMoved", {
     group = vim.api.nvim_create_augroup("GitDiffsMultiCursor", { clear = true }),
@@ -699,28 +747,6 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
     { desc = "Scroll up in the diff view", buffer = nrs.file_list_bufnr }
   )
 
-  vim.keymap.set(
-    "n",
-    "<Plug>GitDiffsMultiRefresh",
-    cb_async(function()
-      vim.async.await(populate_multi_file_file_list(nrs, opts))
-      ensure_main_loop()
-      notify(vim.log.levels.INFO, "Refreshing file list")
-    end),
-    { desc = "Refresh file list", buffer = nrs.file_list_bufnr }
-  )
-
-  vim.api.nvim_exec_autocmds("User", {
-    pattern = "GitDiffsMultiOpen",
-    data = {
-      old_winnr = nrs.old_winnr,
-      new_winnr = nrs.new_winnr,
-      file_list_winnr = nrs.file_list_winnr,
-      old_bufnr = nrs.old_bufnr,
-      new_bufnr = nrs.new_bufnr,
-      file_list_bufnr = nrs.file_list_bufnr,
-    },
-  })
   emit_multi_buffer_event(nrs, nrs.new_bufnr)
 end
 
