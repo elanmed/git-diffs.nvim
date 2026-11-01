@@ -37,9 +37,24 @@ local nonnil = function(val, fallback)
 end
 
 --- @param winnr number
+local should_close_winnr = function(winnr)
+  return winnr ~= nil and vim.api.nvim_win_is_valid(winnr)
+end
+
+--- @param winnr number
 local maybe_close_winnr = function(winnr)
-  if winnr ~= nil and vim.api.nvim_win_is_valid(winnr) then
+  if should_close_winnr(winnr) then
     vim.api.nvim_win_close(winnr, false)
+    return true
+  end
+  return false
+end
+
+--- @param tabnr number
+local maybe_close_tabnr = function(tabnr)
+  if tabnr ~= nil and vim.api.nvim_tabpage_is_valid(tabnr) then
+    vim.api.nvim_set_current_tabpage(tabnr)
+    vim.cmd.tabclose()
     return true
   end
   return false
@@ -99,14 +114,6 @@ end
 --- @alias FileLocation "worktree" | "index" | "head" | "upstream" | "mergebase"
 --- @alias WorktreeDiffType "worktree-index" | "worktree-head" | "worktree-upstream" | "worktree-mergebase"
 --- @alias DiffType WorktreeDiffType | "index-head" | "index-upstream" | "index-mergebase" | "head-upstream" | "head-mergebase"
-
---- @type WorktreeDiffType[]
-local worktree_file_locations = {
-  "worktree-index",
-  "worktree-head",
-  "worktree-upstream",
-  "worktree-mergebase",
-}
 
 --- @type fun(cmd: string[], opts: vim.SystemOpts?): vim.SystemCompleted
 local system_async = vim.async.wrap(3, vim.system)
@@ -471,6 +478,8 @@ M.open_multi_file_diff_view = cb_async(function(opts)
       maybe_close_winnr(state_multi_file.new_winnr)
       maybe_close_winnr(state_multi_file.old_winnr)
       maybe_close_winnr(state_multi_file.file_list_winnr)
+      maybe_close_tabnr(state_multi_file.diff_tabnr)
+
       state_multi_file = vim.deepcopy(initial_state_multi_file)
     end,
   })
@@ -561,6 +570,16 @@ M.open_multi_file_diff_view = cb_async(function(opts)
   })
 end)
 
+local close_single_file_diff_view = function()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  vim.api.nvim_set_current_buf(state_single_file.worktree_bufnr)
+  local line_count = vim.api.nvim_buf_line_count(state_single_file.worktree_bufnr)
+  local clamped = math.min(cursor[1], line_count)
+  vim.api.nvim_win_set_cursor(0, { clamped, cursor[2] })
+
+  maybe_close_winnr(state_single_file.worktree_winnr)
+end
+
 --- @class OpenSingleFileDiffViewParams
 --- @field diff_type WorktreeDiffType
 --- @field upstream_branch? string
@@ -601,7 +620,7 @@ M.open_single_file_diff_view = cb_async(function(opts)
   vim.api.nvim_win_set_buf(state_single_file.worktree_winnr, state_single_file.worktree_bufnr)
 
   state_single_file.old_bufnr = vim.api.nvim_create_buf(false, true)
-  local old_winnr = vim.api.nvim_open_win(state_single_file.old_bufnr, true, {
+  state_single_file.old_winnr = vim.api.nvim_open_win(state_single_file.old_bufnr, true, {
     split = "left",
     win = state_single_file.worktree_winnr,
   })
@@ -629,43 +648,23 @@ M.open_single_file_diff_view = cb_async(function(opts)
 
   vim.bo[state_single_file.old_bufnr].filetype = curr_filetype
 
-  pcall(vim.api.nvim_win_set_cursor, old_winnr, curr_cursor)
+  pcall(vim.api.nvim_win_set_cursor, state_single_file.old_winnr, curr_cursor)
   vim.api.nvim_win_set_cursor(state_single_file.worktree_winnr, curr_cursor)
   vim.api.nvim_set_current_win(state_single_file.worktree_winnr)
 
   vim.bo[state_single_file.old_bufnr].modifiable = false
   vim.bo[state_single_file.old_bufnr].bufhidden = "wipe"
 
-  vim.wo[old_winnr].winbar = old_file_location
+  vim.wo[state_single_file.old_winnr].winbar = old_file_location
   vim.wo[state_single_file.worktree_winnr].winbar = "worktree"
 
-  vim.api.nvim_win_call(old_winnr, vim.cmd.diffthis)
+  vim.api.nvim_win_call(state_single_file.old_winnr, vim.cmd.diffthis)
   vim.api.nvim_win_call(state_single_file.worktree_winnr, vim.cmd.diffthis)
 
   vim.keymap.set("n", "<Plug>GitDiffsSingleFileDiffViewClose", function()
-    if
-      state_single_file.diff_tabnr == nil
-      or not vim.api.nvim_tabpage_is_valid(state_single_file.diff_tabnr)
-    then
-      notify(vim.log.levels.WARN, "Single-file diff tab is no longer available")
-      return
+    if should_close_winnr(state_single_file.worktree_winnr) then
+      close_single_file_diff_view()
     end
-
-    local cursor = vim.api.nvim_win_get_cursor(0)
-    vim.api.nvim_set_current_tabpage(state_single_file.diff_tabnr)
-    vim.cmd.tabclose()
-    if
-      state_single_file.edit_tabnr ~= nil
-      and vim.api.nvim_tabpage_is_valid(state_single_file.edit_tabnr)
-    then
-      vim.api.nvim_set_current_tabpage(state_single_file.edit_tabnr)
-    end
-
-    vim.api.nvim_set_current_buf(state_single_file.worktree_bufnr)
-    local line_count = vim.api.nvim_buf_line_count(state_single_file.worktree_bufnr)
-    state_single_file = vim.deepcopy(initial_state_single_file)
-    local clamped = math.min(cursor[1], line_count)
-    vim.api.nvim_win_set_cursor(0, { clamped, cursor[2] })
   end, { buffer = true })
 
   vim.api.nvim_exec_autocmds("User", {
@@ -695,6 +694,8 @@ M.open_single_file_diff_view = cb_async(function(opts)
 
       maybe_close_winnr(state_single_file.worktree_winnr)
       maybe_close_winnr(state_single_file.old_winnr)
+      maybe_close_tabnr(state_single_file.diff_tabnr)
+
       state_single_file = vim.deepcopy(initial_state_single_file)
     end,
   })
@@ -711,10 +712,11 @@ end
 
 --- @param opts OpenSingleFileDiffViewParams
 M.toggle_single_file_diff_view = function(opts)
-  local closed = maybe_close_winnr(state_single_file.worktree_winnr)
-  if closed then
+  if should_close_winnr(state_single_file.worktree_winnr) then
+    close_single_file_diff_view()
     return
   end
+
   M.open_single_file_diff_view(opts)
 end
 
