@@ -479,7 +479,7 @@ T["diff view"]["cleans up after an unavailable single-file snapshot and allows r
   child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return child.lua_func(function()
-      return #notifications == 1
+      return #notifications == 3
     end)
   end)
   eq(#child.api.nvim_list_tabpages(), 1)
@@ -487,11 +487,12 @@ T["diff view"]["cleans up after an unavailable single-file snapshot and allows r
   eq(child.api.nvim_get_current_buf(), worktree_bufnr)
   eq(
     child.lua_func(function()
-      return notifications[1]
+      return notifications
     end),
     {
-      "[git-diffs.nvim]: could not resolve old snapshot: file=single-missing.txt location=index",
-      vim.log.levels.WARN,
+      { "[git-diffs.nvim]: command failed: git show :single-missing.txt", vim.log.levels.WARN },
+      { "[git-diffs.nvim]: could not resolve file: file=single-missing.txt location=index", vim.log.levels.WARN },
+      { "[git-diffs.nvim]: could not resolve old snapshot: file=single-missing.txt location=index", vim.log.levels.WARN },
     }
   )
 
