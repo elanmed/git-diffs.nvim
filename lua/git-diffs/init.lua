@@ -212,49 +212,66 @@ end
 --- @field upstream_branch? string
 --- @field file_bufnr? number
 
+--- @param file_contents string
+--- @return string
+local normalize_file_contents = function(file_contents)
+  return file_contents:gsub("\n$", "") .. "\n"
+end
+
 --- @type fun(opts: ResolveFileContentsParams): vim.async.Task<string?>
 local resolve_file_contents = function(opts)
   --- @return string?
   return vim.async.run(function()
-    --- @type string?
-    local file_contents
-
     if opts.file_location == "worktree" then
       if opts.file_bufnr == nil then
         local file_lines = M.readfile(opts.rel_filename)
-        file_contents = table.concat(file_lines, "\n")
-      else
-        ensure_main_loop()
-        local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
-        file_contents = table.concat(buf_lines, "\n")
+        return normalize_file_contents(table.concat(file_lines, "\n"))
       end
+
+      ensure_main_loop()
+      local buf_lines = vim.api.nvim_buf_get_lines(opts.file_bufnr, 0, -1, false)
+      return normalize_file_contents(table.concat(buf_lines, "\n"))
     elseif opts.file_location == "index" then
-      file_contents = vim.async.await(vim_system_stdout { "git", "show", ":" .. opts.rel_filename }) --[[@as string?]]
+      local file_contents =
+        vim.async.await(vim_system_stdout { "git", "show", ":" .. opts.rel_filename }) --[[@as string?]]
+      if file_contents == nil then
+        return nil
+      end
+      return normalize_file_contents(file_contents)
     elseif opts.file_location == "head" then
-      file_contents =
+      local file_contents =
         vim.async.await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename }) --[[@as string?]]
+      if file_contents == nil then
+        return nil
+      end
+      return normalize_file_contents(file_contents)
     elseif opts.file_location == "upstream" then
       local upstream_branch = nonnil(opts.upstream_branch, "master")
-      file_contents = vim.async.await(vim_system_stdout {
+      local file_contents = vim.async.await(vim_system_stdout {
         "git",
         "show",
         "origin/" .. upstream_branch .. ":" .. opts.rel_filename,
       }) --[[@as string?]]
+      if file_contents == nil then
+        return nil
+      end
+      return normalize_file_contents(file_contents)
     elseif opts.file_location == "mergebase" then
       local upstream_branch = nonnil(opts.upstream_branch, "master")
       local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
-      if merge_base ~= nil then
-        merge_base = vim.trim(merge_base)
-        file_contents = vim.async.await(
-          vim_system_stdout { "git", "show", merge_base .. ":" .. opts.rel_filename }
-        ) --[[@as string?]]
+      if merge_base == nil then
+        return nil
       end
+      merge_base = vim.trim(merge_base)
+      local file_contents =
+        vim.async.await(vim_system_stdout { "git", "show", merge_base .. ":" .. opts.rel_filename }) --[[@as string?]]
+      if file_contents == nil then
+        return nil
+      end
+      return normalize_file_contents(file_contents)
     end
 
-    if file_contents == nil then
-      return nil
-    end
-    return file_contents:gsub("\n$", "") .. "\n"
+    return nil
   end)
 end
 
