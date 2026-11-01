@@ -63,27 +63,30 @@ local set_cursor = function(winnr, cursor)
   pcall(vim.api.nvim_win_set_cursor, winnr, { line, cursor[2] })
 end
 
---- @param group_name string
---- @param diff_tabnr integer
---- @param winnrs integer[]
---- @param on_close? fun(): nil
-local register_diff_view_close_callback = function(group_name, diff_tabnr, winnrs, on_close)
+--- @class RegisterDiffViewCloseCallbackOpts
+--- @field group_name string
+--- @field diff_tabnr integer
+--- @field winnrs integer[]
+--- @field on_close? fun(): nil
+
+--- @param opts RegisterDiffViewCloseCallbackOpts
+local register_diff_view_close_callback = function(opts)
   vim.api.nvim_create_autocmd("WinClosed", {
-    group = vim.api.nvim_create_augroup(group_name, { clear = true }),
-    pattern = vim.tbl_map(tostring, winnrs),
+    group = vim.api.nvim_create_augroup(opts.group_name, { clear = true }),
+    pattern = vim.tbl_map(tostring, opts.winnrs),
     callback = function()
-      if on_close ~= nil then
-        on_close()
+      if opts.on_close ~= nil then
+        opts.on_close()
       end
-      if vim.api.nvim_tabpage_is_valid(diff_tabnr) and #vim.api.nvim_list_tabpages() == 1 then
+      if vim.api.nvim_tabpage_is_valid(opts.diff_tabnr) and #vim.api.nvim_list_tabpages() == 1 then
         vim.cmd.quitall()
         return
       end
 
-      for _, winnr in ipairs(winnrs) do
+      for _, winnr in ipairs(opts.winnrs) do
         maybe_close_winnr(winnr)
       end
-      maybe_close_tabnr(diff_tabnr)
+      maybe_close_tabnr(opts.diff_tabnr)
     end,
   })
 end
@@ -760,15 +763,15 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
     end,
   })
 
-  register_diff_view_close_callback(
-    "GitDiffsMultiWinClosed",
-    nrs.diff_tabnr,
-    { nrs.new_winnr, nrs.old_winnr, nrs.file_list_winnr },
-    function()
+  register_diff_view_close_callback {
+    group_name = "GitDiffsMultiWinClosed",
+    diff_tabnr = nrs.diff_tabnr,
+    winnrs = { nrs.new_winnr, nrs.old_winnr, nrs.file_list_winnr },
+    on_close = function()
       iter = iter + 1
       clear_file_list_navigation_keymaps(nrs)
-    end
-  )
+    end,
+  }
 
   vim.keymap.set(
     "n",
@@ -932,11 +935,11 @@ local register_single_file_diff_view_callbacks = function(nrs)
     },
   })
 
-  register_diff_view_close_callback(
-    "GitDiffsSingleWinClosed",
-    nrs.diff_tabnr,
-    { nrs.worktree_winnr, nrs.old_winnr }
-  )
+  register_diff_view_close_callback {
+    group_name = "GitDiffsSingleWinClosed",
+    diff_tabnr = nrs.diff_tabnr,
+    winnrs = { nrs.worktree_winnr, nrs.old_winnr },
+  }
 
   vim.keymap.set("n", "<Plug>GitDiffsSingleClose", function()
     close_single_file_diff_view {
