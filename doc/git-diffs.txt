@@ -54,16 +54,16 @@ EXAMPLE CONFIG                                      *git-diffs-example-config*
         vim.wo[data.old_winnr].statusline = " "
         vim.wo[data.new_winnr].statusline = " "
         vim.wo[data.file_list_winnr].statusline = " "
-
+    
         for _, bufnr in ipairs { data.old_bufnr, data.new_bufnr, data.file_list_bufnr } do
           vim.keymap.set("n", "<C-n>", "<Plug>GitDiffsMultiListDown", { buffer = bufnr })
           vim.keymap.set("n", "<C-p>", "<Plug>GitDiffsMultiListUp", { buffer = bufnr })
           vim.keymap.set("n", "o", "<Plug>GitDiffsMultiSwitchBuffer", { buffer = bufnr })
+          vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiRefresh", { buffer = bufnr })
         end
-
+    
         vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiScrollDown", { buffer = data.file_list_bufnr })
         vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiScrollUp", { buffer = data.file_list_bufnr })
-        vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiRefresh", { buffer = data.file_list_bufnr })
       end,
     })
     
@@ -191,7 +191,7 @@ Fired after the single-file diff view opens. `data` contains `old_winnr`,
 `worktree_winnr`, `old_bufnr`, `worktree_bufnr`.
 
 
-
+                                                                              
 `USER GITDIFFSMULTIBUFFER`                *git-diffs-user-gitdiffsmultibuffer*
 
 Fired when multi-file buffers are initialized and when the new-side buffer
