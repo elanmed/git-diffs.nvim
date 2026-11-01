@@ -36,6 +36,15 @@ local nonnil = function(val, fallback)
   return val
 end
 
+--- @param winnr number
+local maybe_close_winnr = function(winnr)
+  if winnr ~= nil and vim.api.nvim_win_is_valid(winnr) then
+    vim.api.nvim_win_close(winnr, false)
+    return true
+  end
+  return false
+end
+
 --- @param file_contents string
 --- @return string[]
 local split_file_contents = function(file_contents)
@@ -369,8 +378,6 @@ M.open_multi_file_diff_view = cb_async(function(opts)
   vim.cmd.tabnew()
   state_multi_file.diff_tabnr = vim.api.nvim_get_current_tabpage()
 
-  vim.t.git_diffs_view_open = true
-
   state_multi_file.upstream_branch = opts.upstream_branch
   state_multi_file.new_bufnr = vim.api.nvim_create_buf(false, true)
   state_multi_file.new_winnr = vim.api.nvim_get_current_win()
@@ -412,7 +419,7 @@ M.open_multi_file_diff_view = cb_async(function(opts)
   state_multi_file.file_list_winnr = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(state_multi_file.file_list_winnr, state_multi_file.file_list_bufnr)
   vim.wo[state_multi_file.file_list_winnr].winbar = "Files"
-  vim.bo[state_multi_file.file_list_bufnr].filetype = "git-diffs-view-file-list"
+  vim.bo[state_multi_file.file_list_bufnr].filetype = "git-diffs-multi-file-diff-view-file-list"
 
   if #file_list_lines > 0 then
     update_diff_view {
@@ -423,7 +430,7 @@ M.open_multi_file_diff_view = cb_async(function(opts)
   end
 
   vim.api.nvim_create_autocmd({ "CursorMoved" }, {
-    group = vim.api.nvim_create_augroup("GitDiffViewFileListCursorMove", { clear = true }),
+    group = vim.api.nvim_create_augroup("GitDiffsMultiFileDiffViewCursorMove", { clear = true }),
     buf = state_multi_file.file_list_bufnr,
     callback = function()
       local rel_filename =
@@ -457,24 +464,13 @@ M.open_multi_file_diff_view = cb_async(function(opts)
         and vim.api.nvim_tabpage_is_valid(diff_tabnr)
         and #vim.api.nvim_list_tabpages() == 1
       then
-        state_multi_file = vim.deepcopy(initial_state_multi_file)
-        vim.defer_fn(function()
-          if vim.api.nvim_tabpage_is_valid(diff_tabnr) and #vim.api.nvim_list_tabpages() == 1 then
-            vim.cmd.quitall()
-          end
-        end, 0)
+        vim.cmd.quitall()
         return
       end
 
-      if vim.api.nvim_win_is_valid(state_multi_file.new_winnr) then
-        vim.api.nvim_win_close(state_multi_file.new_winnr, false)
-      end
-      if vim.api.nvim_win_is_valid(state_multi_file.old_winnr) then
-        vim.api.nvim_win_close(state_multi_file.old_winnr, false)
-      end
-      if vim.api.nvim_win_is_valid(state_multi_file.file_list_winnr) then
-        vim.api.nvim_win_close(state_multi_file.file_list_winnr, false)
-      end
+      maybe_close_winnr(state_multi_file.new_winnr)
+      maybe_close_winnr(state_multi_file.old_winnr)
+      maybe_close_winnr(state_multi_file.file_list_winnr)
       state_multi_file = vim.deepcopy(initial_state_multi_file)
     end,
   })
@@ -600,6 +596,7 @@ M.open_single_file_diff_view = cb_async(function(opts)
   state_single_file.edit_tabnr = vim.api.nvim_get_current_tabpage()
   vim.cmd.tabnew()
   state_single_file.diff_tabnr = vim.api.nvim_get_current_tabpage()
+
   state_single_file.worktree_winnr = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(state_single_file.worktree_winnr, state_single_file.worktree_bufnr)
 
@@ -655,12 +652,15 @@ M.open_single_file_diff_view = cb_async(function(opts)
     end
 
     local cursor = vim.api.nvim_win_get_cursor(0)
-    local edit_tabnr = state_single_file.edit_tabnr
     vim.api.nvim_set_current_tabpage(state_single_file.diff_tabnr)
     vim.cmd.tabclose()
-    if edit_tabnr ~= nil and vim.api.nvim_tabpage_is_valid(edit_tabnr) then
-      vim.api.nvim_set_current_tabpage(edit_tabnr)
+    if
+      state_single_file.edit_tabnr ~= nil
+      and vim.api.nvim_tabpage_is_valid(state_single_file.edit_tabnr)
+    then
+      vim.api.nvim_set_current_tabpage(state_single_file.edit_tabnr)
     end
+
     vim.api.nvim_set_current_buf(state_single_file.worktree_bufnr)
     local line_count = vim.api.nvim_buf_line_count(state_single_file.worktree_bufnr)
     state_single_file = vim.deepcopy(initial_state_single_file)
@@ -685,27 +685,16 @@ M.open_single_file_diff_view = cb_async(function(opts)
       tostring(state_single_file.old_winnr),
     },
     callback = function()
-      local diff_tabnr = state_single_file.diff_tabnr
       if
-        diff_tabnr ~= nil
-        and vim.api.nvim_tabpage_is_valid(diff_tabnr)
+        state_single_file.diff_tabnr ~= nil
+        and vim.api.nvim_tabpage_is_valid(state_single_file.diff_tabnr)
         and #vim.api.nvim_list_tabpages() == 1
       then
-        state_single_file = vim.deepcopy(initial_state_single_file)
-        vim.defer_fn(function()
-          if vim.api.nvim_tabpage_is_valid(diff_tabnr) and #vim.api.nvim_list_tabpages() == 1 then
-            vim.cmd.quitall()
-          end
-        end, 0)
-        return
+        vim.cmd.quitall()
       end
 
-      if vim.api.nvim_win_is_valid(state_single_file.worktree_winnr) then
-        vim.api.nvim_win_close(state_single_file.worktree_winnr, false)
-      end
-      if vim.api.nvim_win_is_valid(state_single_file.old_winnr) then
-        vim.api.nvim_win_close(state_single_file.old_winnr, false)
-      end
+      maybe_close_winnr(state_single_file.worktree_winnr)
+      maybe_close_winnr(state_single_file.old_winnr)
       state_single_file = vim.deepcopy(initial_state_single_file)
     end,
   })
@@ -713,11 +702,20 @@ end)
 
 --- @param opts OpenMultiFileDiffViewParams
 M.toggle_multi_file_diff_view = function(opts)
-  if vim.t.git_diffs_view_open == true then
-    vim.api.nvim_win_close(state_multi_file.file_list_winnr, false)
+  local closed = maybe_close_winnr(state_multi_file.file_list_winnr)
+  if closed then
     return
   end
   M.open_multi_file_diff_view(opts)
+end
+
+--- @param opts OpenSingleFileDiffViewParams
+M.toggle_single_file_diff_view = function(opts)
+  local closed = maybe_close_winnr(state_single_file.worktree_winnr)
+  if closed then
+    return
+  end
+  M.open_single_file_diff_view(opts)
 end
 
 return M

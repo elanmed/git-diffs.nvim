@@ -16,7 +16,7 @@ vim.g.git_diffs = {
 
 vim.api.nvim_create_autocmd({ "FileType" }, {
   group = vim.api.nvim_create_augroup("GitDiffViewRemaps", { clear = true }),
-  pattern = "git-diffs-view-file-list",
+  pattern = "git-diffs-multi-file-diff-view-file-list",
   callback = function()
     vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiFileDiffViewScrollDown", { buffer = true })
     vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiFileDiffViewScrollUp", { buffer = true })
@@ -87,10 +87,14 @@ Toggles the multi-file diff view: opens it if not open, closes it if already ope
 
 ## Autocommand events
 
-### `User GitDiffViewOpen`
+### `User GitDiffsMultiFileDiffViewOpen`
 
-Fired after the diff view opens. `data` contains `old_winnr`, `new_winnr`, `file_list_winnr`, `old_bufnr`, `new_bufnr`, `file_list_bufnr`.
+Fired after the multi-file diff view opens. `data` contains `old_winnr`, `new_winnr`, `file_list_winnr`, `old_bufnr`, `new_bufnr`, `file_list_bufnr`.
+
+### `User GitDiffsSingleFileDiffViewOpen`
+
+Fired after the single-file diff view opens. `data` contains `old_winnr`, `worktree_winnr`, `old_bufnr`, `worktree_bufnr`.
 
 ## Filetype
 
-The file list buffer in the diff view uses `git-diffs-view-file-list` filetype for custom highlighting or keymaps.
+The file list buffer in the diff view uses `git-diffs-multi-file-diff-view-file-list` filetype for custom highlighting or keymaps.
