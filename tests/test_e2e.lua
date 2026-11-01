@@ -358,6 +358,26 @@ T["diff view"]["moves the file list from either diff window"] = function()
   eq(child.api.nvim_win_get_cursor(files_win)[1], 1)
 end
 
+T["diff view"]["emits the selected new-side buffer"] = function()
+  local new_win, _, files_win = open_two_file_diff_view()
+  child.lua_func(function()
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "GitDiffsMultiBuffer",
+      callback = function(event)
+        _G.multi_buffer_event = event.data
+      end,
+    })
+  end)
+
+  child.api.nvim_set_current_win(files_win)
+  child.type_keys "j"
+  expect_state(function()
+    return child.lua_get "multi_buffer_event.rel_filename" == "b.txt"
+  end)
+  eq(child.lua_get "multi_buffer_event.new_winnr", new_win)
+  eq(child.lua_get "multi_buffer_event.new_bufnr", child.fn.bufnr "b.txt")
+end
+
 T["diff view"]["moves the file list from its own buffer"] = function()
   local _, _, files_win = open_two_file_diff_view()
   child.api.nvim_set_current_win(files_win)
@@ -385,11 +405,25 @@ end
 
 T["diff view"]["shows an empty file list when there are no changed files"] = function()
   mock_system_responses { ["git diff --name-only"] = { stdout = "" } }
+  child.lua_func(function()
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "GitDiffsMultiBuffer",
+      once = true,
+      callback = function(event)
+        _G.initial_multi_buffer_event = event.data
+      end,
+    })
+  end)
   child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
     return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
   end)
   eq(get_file_list_lines(), { "" })
+  local event_data = child.lua_get "initial_multi_buffer_event"
+  eq(event_data.new_winnr ~= nil, true)
+  eq(event_data.old_winnr ~= nil, true)
+  eq(event_data.file_list_winnr ~= nil, true)
+  eq(child.api.nvim_win_get_buf(event_data.new_winnr), event_data.new_bufnr)
 end
 
 T["diff view"]["loads a single diff from the current buffer path"] = function()
@@ -583,11 +617,32 @@ T["diff view"]["switches to the selected file buffer in the original tab"] = fun
   expect_state(function()
     return child.api.nvim_get_current_line() == "b.txt"
   end)
+  local new_win
+  expect_state(function()
+    new_win = get_diff_view_windows "b.txt"
+    return new_win ~= nil
+  end)
+  child.api.nvim_set_current_win(new_win)
   child.type_keys "<Plug>GitDiffsMultiSwitchBuffer"
 
   eq(child.api.nvim_get_current_tabpage(), edit_tab)
   eq(child.api.nvim_get_current_buf(), b_bufnr)
   eq(child.api.nvim_buf_get_lines(b_bufnr, 0, -1, false), { "b1", "b2" })
+end
+
+T["diff view"]["switches to the selected file from the old pane"] = function()
+  local _, old_win, files_win = open_two_file_diff_view()
+  local edit_tab = child.api.nvim_list_tabpages()[1]
+  child.api.nvim_set_current_win(files_win)
+  child.type_keys "j"
+  expect_state(function()
+    return child.api.nvim_get_current_line() == "b.txt"
+  end)
+
+  child.api.nvim_set_current_win(old_win)
+  child.type_keys "<Plug>GitDiffsMultiSwitchBuffer"
+  eq(child.api.nvim_get_current_tabpage(), edit_tab)
+  eq(child.api.nvim_get_current_buf(), child.fn.bufnr "b.txt")
 end
 
 T["diff view"]["does nothing when switching from an empty file list"] = function()

@@ -14,14 +14,24 @@ vim.g.git_diffs = {
   smooth_scroll = true,
 }
 
-vim.api.nvim_create_autocmd({ "FileType" }, {
-  group = vim.api.nvim_create_augroup("GitDiffViewRemaps", { clear = true }),
-  pattern = "gitdiffslist",
-  callback = function()
-    vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiScrollDown", { buffer = true })
-    vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiScrollUp", { buffer = true })
-    vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiRefresh", { buffer = true })
-    vim.keymap.set("n", "o", "<Plug>GitDiffsMultiSwitchBuffer", { buffer = true })
+vim.api.nvim_create_autocmd("User", {
+  group = vim.api.nvim_create_augroup("GitDiffsMultiOpts", { clear = true }),
+  pattern = "GitDiffsMultiBuffer",
+  callback = function(ev)
+    local data = ev.data
+    vim.wo[data.old_winnr].statusline = " "
+    vim.wo[data.new_winnr].statusline = " "
+    vim.wo[data.file_list_winnr].statusline = " "
+
+    for _, bufnr in ipairs { data.old_bufnr, data.new_bufnr, data.file_list_bufnr } do
+      vim.keymap.set("n", "<C-n>", "<Plug>GitDiffsMultiListDown", { buffer = bufnr })
+      vim.keymap.set("n", "<C-p>", "<Plug>GitDiffsMultiListUp", { buffer = bufnr })
+      vim.keymap.set("n", "o", "<Plug>GitDiffsMultiSwitchBuffer", { buffer = bufnr })
+    end
+
+    vim.keymap.set("n", "<c-d>", "<Plug>GitDiffsMultiScrollDown", { buffer = data.file_list_bufnr })
+    vim.keymap.set("n", "<c-u>", "<Plug>GitDiffsMultiScrollUp", { buffer = data.file_list_bufnr })
+    vim.keymap.set("n", "<leader>e", "<Plug>GitDiffsMultiRefresh", { buffer = data.file_list_bufnr })
   end,
 })
 
@@ -106,6 +116,10 @@ Fired after the multi-file diff view opens. `data` contains `old_winnr`, `new_wi
 ### `User GitDiffsSingleOpen`
 
 Fired after the single-file diff view opens. `data` contains `old_winnr`, `worktree_winnr`, `old_bufnr`, `worktree_bufnr`.
+
+### `User GitDiffsMultiBuffer`
+
+Fired when multi-file buffers are initialized and when the new-side buffer changes. `data` contains all pane window and buffer IDs; `new_bufnr` is the actual buffer displayed in the new pane, and `rel_filename` is present when a file is selected.
 
 ## Filetype
 
