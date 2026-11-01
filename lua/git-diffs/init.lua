@@ -155,6 +155,7 @@ local scroll_diff_view = function(winnr, direction)
     end
     return [[execute "normal! \\<C-u>"]]
   end)()
+
   vim.api.nvim_win_call(winnr, function()
     vim.cmd(command)
     vim.cmd.normal { "zz", bang = true }
@@ -199,28 +200,10 @@ local vim_system_stdout = function(cmd, opts)
   end)
 end
 
---- @param rel_filename string
+--- @param upstream_branch string
 --- @return vim.async.Task<string?>
-M.read_index_file = function(rel_filename)
-  return vim_system_stdout { "git", "show", ":" .. rel_filename }
-end
-
---- @param rel_filename string
---- @param upstream_branch? string
---- @return vim.async.Task<string?>
-M.read_mergebase_file = function(rel_filename, upstream_branch)
-  --- @return string?
-  return vim.async.run(function()
-    upstream_branch = nonnil(upstream_branch, "master")
-    local merge_base = vim.async.await(
-      vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch }
-    ) --[[@as string?]]
-    if merge_base == nil then
-      return nil
-    end
-    merge_base = vim.trim(merge_base)
-    return vim.async.await(vim_system_stdout { "git", "show", merge_base .. ":" .. rel_filename }) --[[@as string?]]
-  end)
+local get_merge_base = function(upstream_branch)
+  return vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch }
 end
 
 --- @class ResolveFileContentsParams
@@ -246,7 +229,7 @@ local resolve_file_contents = function(opts)
         file_contents = table.concat(buf_lines, "\n")
       end
     elseif opts.file_location == "index" then
-      file_contents = vim.async.await(M.read_index_file(opts.rel_filename)) --[[@as string?]]
+      file_contents = vim.async.await(vim_system_stdout { "git", "show", ":" .. opts.rel_filename }) --[[@as string?]]
     elseif opts.file_location == "head" then
       file_contents =
         vim.async.await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename }) --[[@as string?]]
@@ -258,8 +241,14 @@ local resolve_file_contents = function(opts)
         "origin/" .. upstream_branch .. ":" .. opts.rel_filename,
       }) --[[@as string?]]
     elseif opts.file_location == "mergebase" then
-      file_contents =
-        vim.async.await(M.read_mergebase_file(opts.rel_filename, opts.upstream_branch)) --[[@as string?]]
+      local upstream_branch = nonnil(opts.upstream_branch, "master")
+      local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
+      if merge_base ~= nil then
+        merge_base = vim.trim(merge_base)
+        file_contents = vim.async.await(
+          vim_system_stdout { "git", "show", merge_base .. ":" .. opts.rel_filename }
+        ) --[[@as string?]]
+      end
     end
 
     if file_contents == nil then
@@ -299,9 +288,7 @@ M.run_diff_cmd = function(opts)
   elseif opts.diff_type == "worktree-mergebase" then
     --- @return string?
     return vim.async.run(function()
-      local merge_base = vim.async.await(
-        vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch }
-      ) --[[@as string?]]
+      local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
         return nil
       end
@@ -321,9 +308,7 @@ M.run_diff_cmd = function(opts)
   elseif opts.diff_type == "index-mergebase" then
     --- @return string?
     return vim.async.run(function()
-      local merge_base = vim.async.await(
-        vim_system_stdout { "git", "merge-base", "HEAD", "origin/" .. upstream_branch }
-      ) --[[@as string?]]
+      local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
         return nil
       end

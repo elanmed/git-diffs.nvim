@@ -8,11 +8,9 @@ local function mock_read_index_files(files)
   child.lua_func(
     --- @param files_arg table<string, string>
     function(files_arg)
-      M.read_index_file = function(rel_filename)
-        --- @return string?
-        return vim.async.run(function()
-          return files_arg[rel_filename]
-        end)
+      local responses = rawget(_G, "git_system_responses")
+      for rel_filename, contents in pairs(files_arg) do
+        responses["git show :" .. rel_filename] = { stdout = contents }
       end
     end,
     files
@@ -23,12 +21,16 @@ end
 --- @field code? integer
 --- @field stdout? string
 --- @field stderr? string
+--- @field wait_until_release? boolean
 --- @param responses table<string, MockSystemResult>
 local function mock_system_responses(responses)
   child.lua_func(
     --- @param responses_arg table<string, MockSystemResult>
     function(responses_arg)
-      rawset(_G, "git_system_responses", responses_arg)
+      local responses = rawget(_G, "git_system_responses")
+      for command, response in pairs(responses_arg) do
+        responses[command] = response
+      end
     end,
     responses
   )
@@ -250,9 +252,26 @@ local T = new_set {
             stdout = response and response.stdout or "",
             stderr = response and response.stderr or "",
           }
-          vim.schedule(function()
-            on_exit(result)
-          end)
+          if response and response.wait_until_release then
+            local state = rawget(_G, "mock_snapshot_state")
+            state.waiting = state.waiting + 1
+            local contents = state.snapshot
+            local finish
+            finish = function()
+              if not state.release then
+                vim.defer_fn(finish, 1)
+                return
+              end
+              state.completed = state.completed + 1
+              result.stdout = contents
+              on_exit(result)
+            end
+            vim.schedule(finish)
+          else
+            vim.schedule(function()
+              on_exit(result)
+            end)
+          end
           return nil
         end
         vim.system = system_mock --[[@as any]]
@@ -848,26 +867,6 @@ T["git diff commands"]["return nil for unavailable refs and files"] = function()
 
   eq(run_diff_command("worktree-upstream", "missing"), false)
   eq(run_diff_command("worktree-mergebase", "missing"), false)
-  eq(
-    child.lua_func(function()
-      --- @type string?
-      local result
-      local done = false
-      vim.async.run(
-        --- @return nil
-        function()
-          result = vim.async.await(M.read_index_file "missing.txt") --[[@as string?]]
-          done = true
-          return nil
-        end
-      )
-      assert(vim.wait(1000, function()
-        return done
-      end))
-      return result == nil
-    end),
-    true
-  )
 end
 
 T["diff view"]["refreshes the file list"] = function()
@@ -892,7 +891,10 @@ end
 
 T["diff view"]["ignores pending snapshots after closing and reopening"] = function()
   set_named_buffer("async.txt", { "worktree" })
-  mock_system_responses { ["git diff --name-only"] = { stdout = "async.txt\n" } }
+  mock_system_responses {
+    ["git diff --name-only"] = { stdout = "async.txt\n" },
+    ["git show :async.txt"] = { wait_until_release = true },
+  }
   child.lua_func(function()
     rawset(_G, "mock_snapshot_state", {
       waiting = 0,
@@ -900,18 +902,6 @@ T["diff view"]["ignores pending snapshots after closing and reopening"] = functi
       release = false,
       snapshot = "stale\n",
     })
-    M.read_index_file = function()
-      local state = rawget(_G, "mock_snapshot_state")
-      state.waiting = state.waiting + 1
-      local contents = state.snapshot
-      return vim.async.run(function()
-        while not state.release do
-          vim.async.sleep(1)
-        end
-        state.completed = state.completed + 1
-        return contents
-      end)
-    end
   end)
 
   child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
