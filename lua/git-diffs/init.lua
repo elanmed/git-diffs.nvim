@@ -260,6 +260,7 @@ local resolve_file_contents = function(opts)
       local upstream_branch = opts.upstream_branch
       local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
+        notify(vim.log.levels.WARN, "could not determine merge base for origin/%s", upstream_branch)
         return nil
       end
       merge_base = vim.trim(merge_base)
@@ -271,6 +272,7 @@ local resolve_file_contents = function(opts)
       return normalize_file_contents(file_contents)
     end
 
+    notify(vim.log.levels.WARN, "unsupported file location: %s", opts.file_location)
     return nil
   end)
 end
@@ -307,6 +309,7 @@ local run_diff_cmd = function(opts)
     return vim.async.run(function()
       local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
+        notify(vim.log.levels.WARN, "could not determine merge base for origin/%s", upstream_branch)
         return nil
       end
       merge_base = vim.trim(merge_base)
@@ -327,6 +330,7 @@ local run_diff_cmd = function(opts)
     return vim.async.run(function()
       local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
+        notify(vim.log.levels.WARN, "could not determine merge base for origin/%s", upstream_branch)
         return nil
       end
       merge_base = vim.trim(merge_base)
@@ -609,8 +613,15 @@ local update_diff_view = cb_async(function(nrs, opts)
       return
     end
 
-    new_str =
-      nonnil(new_str, "Could not open " .. opts.rel_filename .. " from " .. new_file_location)
+    if new_str == nil then
+      notify(
+        vim.log.levels.WARN,
+        "could not resolve file: file=%s location=%s",
+        opts.rel_filename,
+        new_file_location
+      )
+      return
+    end
     new_lines = split_file_contents(new_str)
   end
 
@@ -632,7 +643,15 @@ local update_diff_view = cb_async(function(nrs, opts)
     return
   end
 
-  old_str = nonnil(old_str, "Could not open " .. opts.rel_filename .. " from " .. old_file_location)
+  if old_str == nil then
+    notify(
+      vim.log.levels.WARN,
+      "could not resolve file: file=%s location=%s",
+      opts.rel_filename,
+      old_file_location
+    )
+    return
+  end
   local old_lines = split_file_contents(old_str)
 
   vim.api.nvim_win_call(nrs.old_winnr, vim.cmd.diffoff)
@@ -759,10 +778,12 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
     buf = nrs.file_list_bufnr,
     callback = function()
       if not vim.api.nvim_win_is_valid(nrs.file_list_winnr) then
+        notify(vim.log.levels.WARN, "file list window is no longer available")
         return
       end
       local rel_filename = vim.api.nvim_win_call(nrs.file_list_winnr, vim.api.nvim_get_current_line)
       if rel_filename == nil or rel_filename == "" then
+        notify(vim.log.levels.WARN, "no file is selected")
         return
       end
       update_diff_view(nrs, {
@@ -815,6 +836,7 @@ local close_single_file_diff_view = function(close_params)
     not vim.api.nvim_win_is_valid(close_params.worktree_winnr)
     or not vim.api.nvim_buf_is_valid(close_params.worktree_bufnr)
   then
+    notify(vim.log.levels.WARN, "single-file diff view is no longer available")
     return
   end
 
