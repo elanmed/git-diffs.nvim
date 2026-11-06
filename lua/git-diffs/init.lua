@@ -17,12 +17,17 @@ local ensure_main_loop = function()
   vim.async.sleep(0)
 end
 
+--- @param msg string
+--- @param ... any
+local format_message = function(msg, ...)
+  return "[git-diffs.nvim]: " .. msg:format(...)
+end
+
 --- @param level vim.log.levels
 --- @param msg string
 --- @param ... any
 local notify = function(level, msg, ...)
-  msg = "[git-diffs.nvim]: " .. msg
-  vim.notify(msg:format(...), level)
+  vim.notify(format_message(msg, ...), level)
 end
 
 --- @generic T
@@ -236,26 +241,22 @@ local resolve_file_contents = function(opts)
       local file_contents =
         vim.async.await(vim_system_stdout { "git", "show", ":" .. opts.rel_filename }) --[[@as string?]]
       if file_contents == nil then
-        notify(
-          vim.log.levels.WARN,
+        return format_message(
           "could not resolve file: file=%s location=%s",
           opts.rel_filename,
           opts.file_location
         )
-        return nil
       end
       return normalize_file_contents(file_contents)
     elseif opts.file_location == "head" then
       local file_contents =
         vim.async.await(vim_system_stdout { "git", "show", "HEAD:" .. opts.rel_filename }) --[[@as string?]]
       if file_contents == nil then
-        notify(
-          vim.log.levels.WARN,
+        return format_message(
           "could not resolve file: file=%s location=%s",
           opts.rel_filename,
           opts.file_location
         )
-        return nil
       end
       return normalize_file_contents(file_contents)
     elseif opts.file_location == "upstream" then
@@ -266,33 +267,28 @@ local resolve_file_contents = function(opts)
         "origin/" .. upstream_branch .. ":" .. opts.rel_filename,
       }) --[[@as string?]]
       if file_contents == nil then
-        notify(
-          vim.log.levels.WARN,
+        return format_message(
           "could not resolve file: file=%s location=%s",
           opts.rel_filename,
           opts.file_location
         )
-        return nil
       end
       return normalize_file_contents(file_contents)
     elseif opts.file_location == "mergebase" then
       local upstream_branch = opts.upstream_branch
       local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
-        notify(vim.log.levels.WARN, "could not determine merge base for origin/%s", upstream_branch)
-        return nil
+        return format_message("could not determine merge base for origin/%s", upstream_branch)
       end
       merge_base = vim.trim(merge_base)
       local file_contents =
         vim.async.await(vim_system_stdout { "git", "show", merge_base .. ":" .. opts.rel_filename }) --[[@as string?]]
       if file_contents == nil then
-        notify(
-          vim.log.levels.WARN,
+        return format_message(
           "could not resolve file: file=%s location=%s",
           opts.rel_filename,
           opts.file_location
         )
-        return nil
       end
       return normalize_file_contents(file_contents)
     end

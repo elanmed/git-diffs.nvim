@@ -467,7 +467,7 @@ T["diff view"]["loads a single diff from the current buffer path"] = function()
   end)
 end
 
-T["diff view"]["cleans up after an unavailable single-file snapshot and allows retry"] = function()
+T["diff view"]["shows an error message when a single-file snapshot is unavailable"] = function()
   setup_single_file_diff_test(
     "single-missing.txt",
     { "worktree" },
@@ -478,12 +478,23 @@ T["diff view"]["cleans up after an unavailable single-file snapshot and allows r
 
   child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
-    return child.lua_func(function()
-      return #notifications == 3
-    end)
+    return #child.api.nvim_list_tabpages() == 2
+      and #child.api.nvim_tabpage_list_wins(0) == 2
+      and child.lua_func(function()
+        return #notifications == 1
+      end)
   end)
-  eq(#child.api.nvim_list_tabpages(), 1)
-  eq(#child.api.nvim_tabpage_list_wins(0), 1)
+  expect_state(function()
+    local _, old_win = get_diff_view_windows "single-missing.txt"
+    return old_win ~= nil
+      and vim.deep_equal(get_win_lines(old_win), {
+        "[git-diffs.nvim]: could not resolve file: file=single-missing.txt location=index",
+      })
+  end)
+  local _, old_win = get_diff_view_windows "single-missing.txt"
+  eq(get_win_lines(old_win), {
+    "[git-diffs.nvim]: could not resolve file: file=single-missing.txt location=index",
+  })
   eq(child.api.nvim_get_current_buf(), worktree_bufnr)
   eq(
     child.lua_func(function()
@@ -491,22 +502,45 @@ T["diff view"]["cleans up after an unavailable single-file snapshot and allows r
     end),
     {
       { "[git-diffs.nvim]: command failed: git show :single-missing.txt", vim.log.levels.WARN },
-      {
-        "[git-diffs.nvim]: could not resolve file: file=single-missing.txt location=index",
-        vim.log.levels.WARN,
-      },
-      {
-        "[git-diffs.nvim]: could not resolve old snapshot: file=single-missing.txt location=index",
-        vim.log.levels.WARN,
-      },
     }
   )
+
+  child.type_keys "<Plug>GitDiffsSingleClose"
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 1
+  end)
+  eq(child.api.nvim_get_current_buf(), worktree_bufnr)
 
   mock_system_responses {
     ["git show :single-missing.txt"] = { stdout = "old snapshot\n" },
   }
   open_single_file_diff_view()
   eq(#child.api.nvim_list_tabpages(), 2)
+end
+
+T["diff view"]["shows an error message for an unavailable multi-file snapshot"] = function()
+  set_named_buffer("multi-missing.txt", { "worktree" })
+  mock_system_responses {
+    ["git diff --name-only"] = { stdout = "multi-missing.txt\n" },
+    ["git show :multi-missing.txt"] = { code = 128, stderr = "missing path" },
+  }
+  mock_notify()
+
+  child.lua [[M.open_multi_file_diff_view { diff_type = "worktree-index" }]]
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
+  expect_state(function()
+    local _, old_win = get_diff_view_windows "multi-missing.txt"
+    return old_win ~= nil
+      and vim.deep_equal(get_win_lines(old_win), {
+        "[git-diffs.nvim]: could not resolve file: file=multi-missing.txt location=index",
+      })
+  end)
+  local _, old_win = get_diff_view_windows "multi-missing.txt"
+  eq(get_win_lines(old_win), {
+    "[git-diffs.nvim]: could not resolve file: file=multi-missing.txt location=index",
+  })
 end
 
 T["diff view"]["closes the single-file view and restores the worktree cursor"] = function()
