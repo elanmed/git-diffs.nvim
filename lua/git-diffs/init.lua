@@ -511,7 +511,6 @@ local register_multi_buffer_keymaps = function(opts)
 
     local rel_filename = vim.api.nvim_win_call(nrs.file_list_winnr, vim.api.nvim_get_current_line)
     if rel_filename == nil or rel_filename == "" then
-      notify(vim.log.levels.WARN, "No file is selected")
       return
     end
 
@@ -791,7 +790,6 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
       end
       local rel_filename = vim.api.nvim_win_call(nrs.file_list_winnr, vim.api.nvim_get_current_line)
       if rel_filename == nil or rel_filename == "" then
-        notify(vim.log.levels.WARN, "No file is selected")
         return
       end
       update_diff_view(nrs, {
