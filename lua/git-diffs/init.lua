@@ -198,7 +198,6 @@ local vim_system_stdout = function(cmd, opts)
   return vim.async.run(function()
     local out = system_async(cmd, opts)
     if out.code ~= 0 then
-      notify(vim.log.levels.WARN, "command failed: %s", table.concat(cmd, " "))
       return nil
     end
 
@@ -293,7 +292,7 @@ local resolve_file_contents = function(opts)
       return normalize_file_contents(file_contents)
     end
 
-    notify(vim.log.levels.WARN, "unsupported file location: %s", opts.file_location)
+    notify(vim.log.levels.WARN, "Unsupported file location: %s", opts.file_location)
     return nil
   end)
 end
@@ -330,7 +329,7 @@ local run_diff_cmd = function(opts)
     return vim.async.run(function()
       local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
-        notify(vim.log.levels.WARN, "could not determine merge base for origin/%s", upstream_branch)
+        notify(vim.log.levels.WARN, "Could not determine merge base for origin/%s", upstream_branch)
         return nil
       end
       merge_base = vim.trim(merge_base)
@@ -351,7 +350,7 @@ local run_diff_cmd = function(opts)
     return vim.async.run(function()
       local merge_base = vim.async.await(get_merge_base(upstream_branch)) --[[@as string?]]
       if merge_base == nil then
-        notify(vim.log.levels.WARN, "could not determine merge base for origin/%s", upstream_branch)
+        notify(vim.log.levels.WARN, "Could not determine merge base for origin/%s", upstream_branch)
         return nil
       end
       merge_base = vim.trim(merge_base)
@@ -635,12 +634,6 @@ local update_diff_view = cb_async(function(nrs, opts)
     end
 
     if new_str == nil then
-      notify(
-        vim.log.levels.WARN,
-        "could not resolve file: file=%s location=%s",
-        opts.rel_filename,
-        new_file_location
-      )
       return
     end
     new_lines = split_file_contents(new_str)
@@ -665,12 +658,6 @@ local update_diff_view = cb_async(function(nrs, opts)
   end
 
   if old_str == nil then
-    notify(
-      vim.log.levels.WARN,
-      "could not resolve file: file=%s location=%s",
-      opts.rel_filename,
-      old_file_location
-    )
     return
   end
   local old_lines = split_file_contents(old_str)
@@ -799,12 +786,12 @@ local register_multi_file_diff_view_callbacks = function(nrs, opts)
     buf = nrs.file_list_bufnr,
     callback = function()
       if not vim.api.nvim_win_is_valid(nrs.file_list_winnr) then
-        notify(vim.log.levels.WARN, "file list window is no longer available")
+        notify(vim.log.levels.WARN, "File list window is no longer available")
         return
       end
       local rel_filename = vim.api.nvim_win_call(nrs.file_list_winnr, vim.api.nvim_get_current_line)
       if rel_filename == nil or rel_filename == "" then
-        notify(vim.log.levels.WARN, "no file is selected")
+        notify(vim.log.levels.WARN, "No file is selected")
         return
       end
       update_diff_view(nrs, {
@@ -857,7 +844,7 @@ local close_single_file_diff_view = function(close_params)
     not vim.api.nvim_win_is_valid(close_params.worktree_winnr)
     or not vim.api.nvim_buf_is_valid(close_params.worktree_bufnr)
   then
-    notify(vim.log.levels.WARN, "single-file diff view is no longer available")
+    notify(vim.log.levels.WARN, "Single-file diff view is no longer available")
     return
   end
 
@@ -878,7 +865,7 @@ end
 --- @return SingleFileDiffViewContext? context
 local init_single_file_diff_view_nrs = function()
   if vim.bo.buftype ~= "" then
-    notify(vim.log.levels.WARN, "aborting: current buffer buftype is %s", vim.bo.buftype)
+    notify(vim.log.levels.WARN, "Current buffer buftype is %s", vim.bo.buftype)
     return nil
   end
 
@@ -889,11 +876,7 @@ local init_single_file_diff_view_nrs = function()
   assert(cwd ~= nil)
   local rel_filename = vim.fs.relpath(cwd, worktree_bufname)
   if rel_filename == nil then
-    notify(
-      vim.log.levels.WARN,
-      "aborting: could not resolve relative path for %s",
-      worktree_bufname
-    )
+    notify(vim.log.levels.WARN, "Could not resolve relative path for %s", worktree_bufname)
     return nil
   end
 
@@ -951,12 +934,6 @@ local load_single_file_diff_view = function(nrs, context, opts)
   }) --[[@as string?]]
   ensure_main_loop()
   if old_str == nil then
-    notify(
-      vim.log.levels.WARN,
-      "could not resolve old snapshot: file=%s location=%s",
-      context.rel_filename,
-      old_file_location
-    )
     maybe_close_winnr(nrs.worktree_winnr)
     return
   end
@@ -1058,7 +1035,7 @@ M.open_single_file_diff_view = cb_async(function(opts)
   end
   local nrs, context = init_single_file_diff_view_nrs()
   if nrs == nil or context == nil then
-    notify(vim.log.levels.WARN, "could not initialize single-file diff view")
+    notify(vim.log.levels.WARN, "Could not initialize single-file diff view")
     return
   end
   register_single_file_diff_view_callbacks(nrs)
