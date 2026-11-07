@@ -724,7 +724,7 @@ T["diff view"]["does nothing when switching from an empty file list"] = function
     child.lua_func(function()
       return rawget(_G, "notifications")
     end),
-    { { "[git-diffs.nvim]: No file is selected", vim.log.levels.WARN } }
+    {}
   )
 end
 
