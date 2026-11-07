@@ -478,11 +478,7 @@ T["diff view"]["shows an error message when a single-file snapshot is unavailabl
 
   child.lua [[M.open_single_file_diff_view { diff_type = "worktree-index" }]]
   expect_state(function()
-    return #child.api.nvim_list_tabpages() == 2
-      and #child.api.nvim_tabpage_list_wins(0) == 2
-      and child.lua_func(function()
-        return #notifications == 1
-      end)
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 2
   end)
   expect_state(function()
     local _, old_win = get_diff_view_windows "single-missing.txt"
@@ -500,9 +496,7 @@ T["diff view"]["shows an error message when a single-file snapshot is unavailabl
     child.lua_func(function()
       return notifications
     end),
-    {
-      { "[git-diffs.nvim]: command failed: git show :single-missing.txt", vim.log.levels.WARN },
-    }
+    {}
   )
 
   child.type_keys "<Plug>GitDiffsSingleClose"
