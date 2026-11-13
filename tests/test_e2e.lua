@@ -146,6 +146,35 @@ local function get_win_lines(win_id)
   return child.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 end
 
+--- @param win_id integer
+--- @return boolean
+local function get_win_wrap(win_id)
+  return child.lua_func(function(win)
+    return vim.wo[win].wrap
+  end, win_id)
+end
+
+--- @param win_id integer
+--- @return integer
+local function get_win_text_height(win_id)
+  return child.lua_func(function(win)
+    return vim.api.nvim_win_text_height(win, {}).all
+  end, win_id)
+end
+
+--- @param winbar string
+--- @return integer?
+local function find_win_by_winbar(winbar)
+  return child.lua_func(function(wanted)
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.wo[win].winbar == wanted then
+        return win
+      end
+    end
+    return nil
+  end, winbar)
+end
+
 --- @param filename string
 --- @param worktree_lines string[]
 --- @param index_content string
@@ -338,6 +367,24 @@ line3
   eq(get_win_lines(files_win), { "test.txt" })
 end
 
+T["diff view"]["wraps long lines in both diff windows"] = function()
+  local long_line = string.rep("x", 200)
+  setup_diff_view_test("long.txt", { long_line }, "old\n")
+
+  child.lua_func(function()
+    M.open_multi_file_diff_view { diff_type = "worktree-index" }
+  end)
+  expect_state(function()
+    return #child.api.nvim_list_tabpages() == 2 and #child.api.nvim_tabpage_list_wins(0) == 3
+  end)
+
+  local new_win, old_win = get_diff_view_windows "long.txt"
+
+  eq(get_win_wrap(new_win), true)
+  eq(get_win_wrap(old_win), true)
+  eq(get_win_text_height(new_win) > 1, true)
+end
+
 T["diff view"]["preserves empty and trailing snapshot lines"] = new_set {
   parametrize = {
     { "empty.txt", "", { "changed" }, { "" } },
@@ -465,6 +512,18 @@ T["diff view"]["loads a single diff from the current buffer path"] = function()
       return false
     end)
   end)
+end
+
+T["diff view"]["wraps long lines in the single-file diff view"] = function()
+  setup_single_file_diff_test("long-single.txt", { string.rep("x", 200) }, { stdout = "old\n" })
+  open_single_file_diff_view()
+
+  local worktree_win = find_win_by_winbar "worktree"
+  assert(worktree_win ~= nil)
+
+  eq(get_win_wrap(worktree_win), true)
+  eq(get_win_wrap(find_win_by_winbar "index"), true)
+  eq(get_win_text_height(worktree_win) > 1, true)
 end
 
 T["diff view"]["shows an error message when a single-file snapshot is unavailable"] = function()

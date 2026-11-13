@@ -68,6 +68,13 @@ local set_cursor = function(winnr, cursor)
   pcall(vim.api.nvim_win_set_cursor, winnr, { line, cursor[2] })
 end
 
+--- `:diffthis` forces 'nowrap' on, so wrap is re-enabled afterwards
+--- @param winnr integer
+local diffthis = function(winnr)
+  vim.api.nvim_win_call(winnr, vim.cmd.diffthis)
+  vim.wo[winnr].wrap = true
+end
+
 --- @class RegisterDiffViewCloseCallbackOpts
 --- @field group_name string
 --- @field diff_tabnr integer
@@ -686,8 +693,8 @@ local update_diff_view = cb_async(function(nrs, opts)
   end
   vim.api.nvim_buf_set_lines(nrs.old_bufnr, 0, -1, false, old_lines)
 
-  vim.api.nvim_win_call(nrs.old_winnr, vim.cmd.diffthis)
-  vim.api.nvim_win_call(nrs.new_winnr, vim.cmd.diffthis)
+  diffthis(nrs.old_winnr)
+  diffthis(nrs.new_winnr)
 
   local new_bufnr = vim.api.nvim_win_get_buf(nrs.new_winnr)
   if new_bufnr ~= previous_new_bufnr then
@@ -950,8 +957,8 @@ local load_single_file_diff_view = function(nrs, context, opts)
   vim.wo[nrs.old_winnr].winbar = old_file_location
   vim.wo[nrs.worktree_winnr].winbar = "worktree"
 
-  vim.api.nvim_win_call(nrs.old_winnr, vim.cmd.diffthis)
-  vim.api.nvim_win_call(nrs.worktree_winnr, vim.cmd.diffthis)
+  diffthis(nrs.old_winnr)
+  diffthis(nrs.worktree_winnr)
 end
 
 --- @param nrs SingleFileDiffViewNrs
