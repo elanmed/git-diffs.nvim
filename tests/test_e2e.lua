@@ -519,10 +519,12 @@ T["diff view"]["wraps long lines in the single-file diff view"] = function()
   open_single_file_diff_view()
 
   local worktree_win = find_win_by_winbar "worktree"
+  local index_win = find_win_by_winbar "index"
   assert(worktree_win ~= nil)
+  assert(index_win ~= nil)
 
   eq(get_win_wrap(worktree_win), true)
-  eq(get_win_wrap(find_win_by_winbar "index"), true)
+  eq(get_win_wrap(index_win), true)
   eq(get_win_text_height(worktree_win) > 1, true)
 end
 
